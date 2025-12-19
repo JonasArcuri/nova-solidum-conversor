@@ -13,7 +13,7 @@ function App() {
   const [spreadBps, setSpreadBps] = useState<number>(SPREAD_BPS_DEFAULT);
   const [spreadInputValue, setSpreadInputValue] = useState<string>((SPREAD_BPS_DEFAULT / 100).toFixed(2));
   const [timeframe, setTimeframe] = useState<Timeframe>("24H");
-  const { priceWithSpread, basePrice, bid, ask, lastUpdateTs, status, latency } = useUsdtBrl(spreadBps);
+  const { priceWithSpread, basePrice, bid, ask, lastUpdateTs, latency } = useUsdtBrl(spreadBps);
 
   const formatPrice = (price: number | null): string => {
     if (price === null || !isFinite(price)) {
@@ -63,23 +63,6 @@ function App() {
       return "";
     }
     return new Date(ts).toLocaleTimeString("pt-BR");
-  };
-
-  const getStatusLabel = (status: string, latency: number | null): string => {
-    const latencyText = latency !== null && latency >= 0 ? ` (${latency}ms)` : "";
-    
-    switch (status) {
-      case "connecting":
-        return "Conectando...";
-      case "live":
-        return `Conectado${latencyText}`;
-      case "reconnecting":
-        return "Reconectando...";
-      case "fallback":
-        return `Modo fallback${latencyText}`;
-      default:
-        return status;
-    }
   };
 
   return (
