@@ -197,7 +197,7 @@ function App() {
                   value={spreadInputValue}
                   onChange={(e) => handleSpreadInputChange(e.target.value)}
                   onBlur={handleSpreadBlur}
-                  placeholder="0.70"
+                  placeholder="0.85"
                 />
                 <span className="spread-suffix">%</span>
               </div>
