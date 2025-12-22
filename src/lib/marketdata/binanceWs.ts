@@ -38,7 +38,7 @@ const WS_ENDPOINTS = [
 const MAX_BACKOFF_MS = 5000; // Reduzido de 15s para 5s
 const INITIAL_BACKOFF_MS = 100; // Reduzido de 500ms para 100ms
 const HEARTBEAT_INTERVAL_MS = 20000; // Ping a cada 20s
-const CONNECTION_TIMEOUT_MS = 5000; // 5s para conectar
+const CONNECTION_TIMEOUT_MS = 8000; // 8s para conectar (aumentado para evitar fechamento prematuro)
 
 interface BinanceTickerResponse {
   e: string; // event type
@@ -93,16 +93,30 @@ export function connectUsdtBrlTicker(
         
         if (timeSinceLastMessage > HEARTBEAT_INTERVAL_MS * 2) {
           // Conexão pode estar morta, reconectar
-          ws.close();
+          if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) {
+            try {
+              ws.close();
+            } catch {
+              // Ignorar erro ao fechar
+            }
+          }
           return;
         }
         
         // Enviar ping (pong é automático no browser)
         try {
-          ws.send(JSON.stringify({ ping: Date.now() }));
+          if (ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ ping: Date.now() }));
+          }
         } catch {
-          // Conexão morta
-          ws.close();
+          // Conexão morta - fechar apenas se estiver em estado válido
+          if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) {
+            try {
+              ws.close();
+            } catch {
+              // Ignorar erro ao fechar
+            }
+          }
         }
       }
     }, HEARTBEAT_INTERVAL_MS);
@@ -131,8 +145,13 @@ export function connectUsdtBrlTicker(
       
       // Timeout de conexão
       connectionTimeoutId = setTimeout(() => {
-        if (ws && ws.readyState !== WebSocket.OPEN) {
-          ws.close();
+        if (ws && (ws.readyState === WebSocket.CONNECTING || ws.readyState === WebSocket.CLOSING)) {
+          // Apenas fechar se ainda estiver tentando conectar ou fechando
+          try {
+            ws.close();
+          } catch {
+            // Ignorar erro - WebSocket pode já estar fechado
+          }
         }
       }, CONNECTION_TIMEOUT_MS);
 
@@ -159,13 +178,17 @@ export function connectUsdtBrlTicker(
             const serverTime = data.E;
             const clientTime = Date.now();
             
+            // Calcular latência: tempo que levou para a mensagem chegar
+            // Usar valor absoluto para garantir que seja sempre positivo
+            const calculatedLatency = Math.abs(clientTime - serverTime);
+            
             const tick: TickerTick = {
               last: parseFloat(data.c),
               bid: parseFloat(data.b),
               ask: parseFloat(data.a),
               eventTime: serverTime,
               ts: clientTime,
-              latency: clientTime - serverTime, // Calcular latência
+              latency: calculatedLatency, // Latência sempre positiva
             };
 
             if (
@@ -182,13 +205,24 @@ export function connectUsdtBrlTicker(
         }
       };
 
-      ws.onerror = () => {
+      ws.onerror = (event) => {
         // Erro silencioso - tratado no onclose
+        // Prevenir que o erro apareça no console do navegador
+        if (event && typeof event.preventDefault === 'function') {
+          event.preventDefault();
+        }
       };
 
       ws.onclose = () => {
         clearAllTimers();
-        ws = null;
+        
+        // Limpar referência apenas se o WebSocket foi realmente fechado
+        if (ws) {
+          // Verificar se o WebSocket está realmente fechado antes de limpar
+          if (ws.readyState === WebSocket.CLOSED || ws.readyState === WebSocket.CLOSING) {
+            ws = null;
+          }
+        }
         
         if (!isIntentionallyClosed) {
           onStatus("reconnecting");
@@ -219,7 +253,14 @@ export function connectUsdtBrlTicker(
       clearAllTimers();
       
       if (ws) {
-        ws.close();
+        // Verificar estado antes de fechar para evitar erros
+        if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) {
+          try {
+            ws.close();
+          } catch {
+            // Ignorar erro ao fechar - WebSocket pode já estar fechado
+          }
+        }
         ws = null;
       }
     },

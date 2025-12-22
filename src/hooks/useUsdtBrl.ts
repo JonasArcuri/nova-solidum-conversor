@@ -22,9 +22,9 @@ const THROTTLE_VOLATILE_MS = 500; // 500ms quando volátil
 // ============================================
 // Configuração de Fallback Otimizada
 // ============================================
-const MAX_WS_FAILURES = 3;        // Reduzido de 5 para 3
+const MAX_WS_FAILURES = 2;        // Reduzido para 2 para ativar fallback mais rapidamente
 const FALLBACK_POLL_INTERVAL = 2000; // 2 segundos (era 5s)
-const PREEMPTIVE_FALLBACK_MS = 5000; // Ativar fallback após 5s sem dados
+const PREEMPTIVE_FALLBACK_MS = 3000; // Ativar fallback após 3s sem dados (reduzido de 5s)
 
 export interface UseUsdtBrlReturn {
   basePrice: number | null;
@@ -210,12 +210,15 @@ export function useUsdtBrl(spreadBps?: number): UseUsdtBrlReturn {
       // Não notificar usuário sobre reconexão - manter "live"
       // Apenas gerenciar fallback silenciosamente
       const timeSinceLastSuccess = Date.now() - lastWsSuccessTsRef.current;
-      if (timeSinceLastSuccess > 5000) {
+      
+      // Incrementar contador de falhas mais rapidamente
+      if (timeSinceLastSuccess > 3000 || lastWsSuccessTsRef.current === 0) {
         wsFailureCountRef.current += 1;
       }
 
       // Ativar fallback silenciosamente para manter dados fluindo
-      if (wsFailureCountRef.current >= MAX_WS_FAILURES) {
+      // Ativar mais rapidamente se nunca teve sucesso ou após poucas falhas
+      if (wsFailureCountRef.current >= MAX_WS_FAILURES || lastWsSuccessTsRef.current === 0) {
         startFallback();
       }
     }

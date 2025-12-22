@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useUsdtBrl } from "./hooks/useUsdtBrl";
 import { SPREAD_BPS_DEFAULT } from "./lib/pricing/spread";
 import { UsdtBrlCandlesChart } from "./components/UsdtBrlCandlesChart";
+import { TradingViewTicker } from "./components/TradingViewTicker";
 import { type Timeframe } from "./lib/marketdata/timeframeMap";
 import logoImage from "./Nova-Solidum.png";
 import "./App.css";
@@ -13,7 +14,7 @@ function App() {
   const [spreadBps, setSpreadBps] = useState<number>(SPREAD_BPS_DEFAULT);
   const [spreadInputValue, setSpreadInputValue] = useState<string>((SPREAD_BPS_DEFAULT / 100).toFixed(2));
   const [timeframe, setTimeframe] = useState<Timeframe>("24H");
-  const { priceWithSpread, basePrice, bid, ask, lastUpdateTs, latency } = useUsdtBrl(spreadBps);
+  const { priceWithSpread, basePrice, bid, ask, lastUpdateTs } = useUsdtBrl(spreadBps);
 
   const formatPrice = (price: number | null): string => {
     if (price === null || !isFinite(price)) {
@@ -121,7 +122,9 @@ function App() {
               <div className="quote-details">
                 <div className="detail-row">
                   <span className="detail-label">Preço base:</span>
-                  <span className="detail-value">{formatPrice(basePrice)}</span>
+                  <div className="detail-value-ticker">
+                    <TradingViewTicker symbol="BINANCE:USDTBRL" locale="pt_BR" colorTheme="light" />
+                  </div>
                 </div>
                 {bid !== null && (
                   <div className="detail-row">
@@ -151,12 +154,6 @@ function App() {
             <div className="quote-status">
               <span className="status-indicator status-live pulse"></span>
               <span className="status-text">Conectado</span>
-              {latency !== null && (
-                <span className="latency-badge">
-                  <span className="latency-dot"></span>
-                  <span className="latency-value">{latency}ms</span>
-                </span>
-              )}
             </div>
 
             {/* Gráfico na aba principal */}
