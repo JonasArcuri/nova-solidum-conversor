@@ -68,16 +68,38 @@ export function UsdtBrlCandlesChart({
       return;
     }
 
-    // Limpar script anterior se existir
-    if (scriptRef.current) {
-      const oldScript = document.getElementById("tradingview-widget-script");
-      if (oldScript) {
-        oldScript.remove();
+    // Limpar container antes de criar novo widget
+    while (containerRef.current.firstChild) {
+      containerRef.current.removeChild(containerRef.current.firstChild);
+    }
+
+    // Criar container para o widget
+    const containerId = `tradingview_${Date.now()}`;
+    containerRef.current.id = containerId;
+
+    // Verificar se TradingView já está carregado (reutilizar script existente)
+    if ((window as any).TradingView) {
+      createWidget();
+      return;
+    }
+
+    // Verificar se script já existe no DOM (evitar duplicação)
+    let existingScript = document.getElementById("tradingview-widget-script") as HTMLScriptElement;
+    
+    if (existingScript) {
+      // Script já existe, aguardar carregamento
+      if (existingScript.onload) {
+        // Já tem handler, adicionar nosso handler também
+        const originalOnload = existingScript.onload;
+        existingScript.onload = (e) => {
+          originalOnload(e);
+          createWidget();
+        };
+      } else {
+        existingScript.onload = () => createWidget();
       }
-      // Usar textContent = "" é mais seguro que innerHTML = ""
-      while (containerRef.current.firstChild) {
-        containerRef.current.removeChild(containerRef.current.firstChild);
-      }
+      scriptRef.current = existingScript;
+      return;
     }
 
     // Criar script do TradingView com validações de segurança
@@ -93,7 +115,20 @@ export function UsdtBrlCandlesChart({
 
     script.onload = () => {
       clearTimeout(loadTimeout);
-      
+      createWidget();
+    };
+
+    script.onerror = () => {
+      clearTimeout(loadTimeout);
+      setLoadError("Falha ao carregar recursos do gráfico");
+    };
+
+    // Adicionar script ao documento apenas se não existir
+    document.head.appendChild(script);
+    scriptRef.current = script;
+
+    // Função auxiliar para criar widget
+    function createWidget() {
       if (!containerRef.current || !(window as any).TradingView) {
         setLoadError("Erro ao inicializar o gráfico");
         return;
@@ -127,38 +162,19 @@ export function UsdtBrlCandlesChart({
       } catch {
         setLoadError("Erro ao criar o gráfico");
       }
-    };
-
-    script.onerror = () => {
-      clearTimeout(loadTimeout);
-      setLoadError("Falha ao carregar recursos do gráfico");
-    };
-
-    // Criar container para o widget
-    const containerId = `tradingview_${Date.now()}`;
-    containerRef.current.id = containerId;
-    while (containerRef.current.firstChild) {
-      containerRef.current.removeChild(containerRef.current.firstChild);
     }
-
-    // Adicionar script ao documento
-    document.head.appendChild(script);
-    scriptRef.current = script;
 
     return () => {
       clearTimeout(loadTimeout);
-      // Cleanup
-      if (scriptRef.current) {
-        const scriptElement = document.getElementById("tradingview-widget-script");
-        if (scriptElement) {
-          scriptElement.remove();
-        }
-      }
+      // Limpar apenas o container, não remover o script (pode ser usado por outros componentes)
       if (containerRef.current) {
         while (containerRef.current.firstChild) {
           containerRef.current.removeChild(containerRef.current.firstChild);
         }
       }
+      // Não remover o script do DOM - pode ser reutilizado
+      // O script só será removido quando o componente for desmontado pela última vez
+      scriptRef.current = null;
     };
   }, [timeframe]);
 

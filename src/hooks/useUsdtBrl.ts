@@ -2,7 +2,7 @@
  * Hook para cotação USDT/BRL em tempo real - Alta Performance
  * 
  * Otimizações:
- * 1. Throttle adaptativo baseado em volatilidade
+ * 1. Atualização em tempo real (sem throttle)
  * 2. Fallback HTTP ultra-rápido (2s polling)
  * 3. Preemptive fallback durante reconexão
  * 4. Indicador de latência
@@ -11,13 +11,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { connectUsdtBrlTicker, type TickerTick, type ConnectionStatus } from "@/lib/marketdata/binanceWs";
 import { applySpread, SPREAD_BPS_DEFAULT } from "@/lib/pricing/spread";
-
-// ============================================
-// Configuração de Throttle Otimizada
-// ============================================
-const THROTTLE_UP_MS = 1000;    // 1 segundo para subida (era 3s)
-const THROTTLE_DOWN_MS = 3000;  // 3 segundos para descida (era 10s)
-const THROTTLE_VOLATILE_MS = 500; // 500ms quando volátil
 
 // ============================================
 // Configuração de Fallback Otimizada
@@ -46,37 +39,12 @@ export function useUsdtBrl(spreadBps?: number): UseUsdtBrlReturn {
   const [latency, setLatency] = useState<number | null>(null);
 
   const lastEmittedPriceRef = useRef<number | null>(null);
-  const lastEmitTsRef = useRef<number>(0);
   const wsFailureCountRef = useRef<number>(0);
   const lastWsSuccessTsRef = useRef<number>(0);
   const lastDataTsRef = useRef<number>(Date.now());
   const fallbackIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const preemptiveCheckIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const isUsingFallbackRef = useRef<boolean>(false);
-  const priceHistoryRef = useRef<number[]>([]);
-
-  // Calcular volatilidade baseada nos últimos preços
-  const calculateVolatility = useCallback((): number => {
-    const history = priceHistoryRef.current;
-    if (history.length < 3) return 0;
-    
-    const recent = history.slice(-10);
-    const avg = recent.reduce((a: number, b: number) => a + b, 0) / recent.length;
-    const variance = recent.reduce((sum: number, p: number) => sum + Math.pow(p - avg, 2), 0) / recent.length;
-    return Math.sqrt(variance) / avg * 100; // Volatilidade em %
-  }, []);
-
-  // Determinar throttle baseado em volatilidade
-  const getThrottleInterval = useCallback((isUp: boolean): number => {
-    const volatility = calculateVolatility();
-    
-    // Alta volatilidade = atualizações mais frequentes
-    if (volatility > 0.5) {
-      return THROTTLE_VOLATILE_MS;
-    }
-    
-    return isUp ? THROTTLE_UP_MS : THROTTLE_DOWN_MS;
-  }, [calculateVolatility]);
 
   const emitPrice = useCallback((tick: TickerTick, ts: number, currentSpread?: number) => {
     const spreadToUse = currentSpread ?? spreadBps ?? SPREAD_BPS_DEFAULT;
@@ -91,24 +59,15 @@ export function useUsdtBrl(spreadBps?: number): UseUsdtBrlReturn {
       setLatency(tick.latency ?? null);
 
       lastEmittedPriceRef.current = tick.last;
-      lastEmitTsRef.current = ts;
       lastDataTsRef.current = ts;
-
-      // Manter histórico de preços para cálculo de volatilidade
-      priceHistoryRef.current.push(tick.last);
-      if (priceHistoryRef.current.length > 20) {
-        priceHistoryRef.current.shift();
-      }
     }
   }, [spreadBps]);
 
   const handleTick = useCallback((tick: TickerTick) => {
     const now = Date.now();
-    const lastEmittedPrice = lastEmittedPriceRef.current;
-    const lastEmitTs = lastEmitTsRef.current;
     const currentSpreadBps = spreadBps ?? SPREAD_BPS_DEFAULT;
 
-    // Sempre atualizar latência em tempo real (sem throttle)
+    // Sempre atualizar latência em tempo real
     if (tick.latency !== undefined) {
       setLatency(tick.latency);
     }
@@ -116,21 +75,9 @@ export function useUsdtBrl(spreadBps?: number): UseUsdtBrlReturn {
     // Sempre atualizar timestamp de dados recebidos
     lastDataTsRef.current = now;
 
-    // Primeira emissão: publicar imediatamente
-    if (lastEmittedPrice === null) {
-      emitPrice(tick, now, currentSpreadBps);
-      return;
-    }
-
-    // Determinar intervalo mínimo baseado na direção e volatilidade
-    const isUp = tick.last > lastEmittedPrice;
-    const minInterval = getThrottleInterval(isUp);
-
-    // Verificar se passou tempo suficiente
-    if (now - lastEmitTs >= minInterval) {
-      emitPrice(tick, now, currentSpreadBps);
-    }
-  }, [emitPrice, spreadBps, getThrottleInterval]);
+    // Atualizar imediatamente em tempo real (sem throttle)
+    emitPrice(tick, now, currentSpreadBps);
+  }, [emitPrice, spreadBps]);
 
   // Função para buscar preço via HTTP (fallback otimizado)
   const fetchPriceFromFallback = useCallback(async (): Promise<void> => {
@@ -168,6 +115,12 @@ export function useUsdtBrl(spreadBps?: number): UseUsdtBrlReturn {
   // Iniciar fallback (silencioso - não muda status visual)
   const startFallback = useCallback(() => {
     if (isUsingFallbackRef.current) return;
+    
+    // Limpar intervalo anterior se existir (evitar vazamento)
+    if (fallbackIntervalRef.current) {
+      clearInterval(fallbackIntervalRef.current);
+      fallbackIntervalRef.current = null;
+    }
     
     isUsingFallbackRef.current = true;
     // Não mudar status - manter "live" para UX suave
@@ -225,17 +178,32 @@ export function useUsdtBrl(spreadBps?: number): UseUsdtBrlReturn {
   }, [startFallback, stopFallback]);
 
   // Verificação preemptiva: se não receber dados por X segundos, ativar fallback silenciosamente
+  // Usar refs para evitar dependências instáveis que causam recriações
+  const startFallbackRef = useRef(startFallback);
+  const statusRef = useRef(status);
+  
+  // Atualizar refs quando valores mudam
   useEffect(() => {
+    startFallbackRef.current = startFallback;
+    statusRef.current = status;
+  }, [startFallback, status]);
+
+  useEffect(() => {
+    // Limpar intervalo anterior antes de criar novo (evitar vazamento)
+    if (preemptiveCheckIntervalRef.current) {
+      clearInterval(preemptiveCheckIntervalRef.current);
+      preemptiveCheckIntervalRef.current = null;
+    }
     preemptiveCheckIntervalRef.current = setInterval(() => {
       const timeSinceLastData = Date.now() - lastDataTsRef.current;
       
-      // Ativar fallback silenciosamente para manter dados fluindo
+      // Ativar fallback silenciosamente para manter dados fluindo (usar ref)
       if (timeSinceLastData > PREEMPTIVE_FALLBACK_MS && !isUsingFallbackRef.current) {
-        startFallback();
+        startFallbackRef.current();
       }
       
-      // Se temos dados recentes, garantir que status é "live"
-      if (timeSinceLastData < 3000 && status !== "live" && status !== "connecting") {
+      // Se temos dados recentes, garantir que status é "live" (usar ref)
+      if (timeSinceLastData < 3000 && statusRef.current !== "live" && statusRef.current !== "connecting") {
         setStatus("live");
       }
     }, 2000);
@@ -243,9 +211,10 @@ export function useUsdtBrl(spreadBps?: number): UseUsdtBrlReturn {
     return () => {
       if (preemptiveCheckIntervalRef.current) {
         clearInterval(preemptiveCheckIntervalRef.current);
+        preemptiveCheckIntervalRef.current = null;
       }
     };
-  }, [startFallback, status]);
+  }, []); // Sem dependências - usa refs para valores atualizados
 
   // Recalcular priceWithSpread quando spreadBps mudar
   useEffect(() => {

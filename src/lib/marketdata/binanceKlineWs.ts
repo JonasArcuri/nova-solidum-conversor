@@ -102,6 +102,11 @@ export function connectKlineStream(
               };
 
       ws.onclose = () => {
+        // Limpar timeout anterior antes de criar novo (evitar vazamento)
+        if (reconnectTimeoutId) {
+          clearTimeout(reconnectTimeoutId);
+          reconnectTimeoutId = null;
+        }
         ws = null;
         if (!isIntentionallyClosed) {
           onStatus("reconnecting");
@@ -113,6 +118,11 @@ export function connectKlineStream(
       };
             } catch (error) {
               // Erro silencioso - não expor detalhes no console do cliente
+              // Limpar timeout anterior antes de criar novo (evitar vazamento)
+              if (reconnectTimeoutId) {
+                clearTimeout(reconnectTimeoutId);
+                reconnectTimeoutId = null;
+              }
               onStatus("reconnecting");
       reconnectTimeoutId = setTimeout(() => {
         backoffMs = Math.min(backoffMs * 2, MAX_BACKOFF_MS);
