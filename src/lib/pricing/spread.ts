@@ -2,12 +2,12 @@
  * Módulo para aplicação de spread (markup) em preços
  */
 
-export const SPREAD_BPS_DEFAULT = 85; // 0.7% = 70 basis points
+export const SPREAD_BPS_DEFAULT = 85; // 0.85% = 85 basis points
 
 /**
  * Aplica spread (markup) a um preço base
  * @param base - Preço base (deve ser > 0)
- * @param spreadBps - Spread em basis points (padrão: 70 = 0.7%)
+ * @param spreadBps - Spread em basis points (padrão: 85 = 0.85%)
  * @returns Preço com spread aplicado (base * (1 + spreadBps/10000))
  * @throws Se base <= 0, retorna NaN
  */

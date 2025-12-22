@@ -2,9 +2,9 @@ import { describe, it, expect } from "vitest";
 import { applySpread, SPREAD_BPS_DEFAULT } from "./spread";
 
 describe("applySpread", () => {
-  it("deve aplicar spread padrão de 0.7% (70 bps)", () => {
+  it("deve aplicar spread padrão de 0.85% (85 bps)", () => {
     const base = 100;
-    const expected = base * 1.007; // 100.7
+    const expected = base * 1.0085; // 100.85
     const result = applySpread(base);
     expect(result).toBeCloseTo(expected, 2);
   });
@@ -30,7 +30,7 @@ describe("applySpread", () => {
   it("deve funcionar com valores reais de mercado", () => {
     const base = 5.25; // Exemplo de preço USDT/BRL
     const result = applySpread(base, SPREAD_BPS_DEFAULT);
-    const expected = 5.25 * 1.007;
+    const expected = 5.25 * 1.0085;
     expect(result).toBeCloseTo(expected, 4);
   });
 });
