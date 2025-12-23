@@ -17,17 +17,17 @@ describe("applySpread", () => {
     expect(result).toBeCloseTo(expected, 2);
   });
 
-  it("deve garantir spread mínimo de 0,0035 pontos", () => {
+  it("deve garantir spread mínimo de 0,0025 pontos", () => {
     const base = 5.25;
     const spreadBps = 0; // 0% - spread mínimo deve ser aplicado
     const result = applySpread(base, spreadBps);
-    const expected = base + MIN_SPREAD_POINTS; // 5.2535
+    const expected = base + MIN_SPREAD_POINTS; // 5.2525
     expect(result).toBeCloseTo(expected, 4);
   });
 
   it("deve usar spread percentual quando maior que o mínimo", () => {
     const base = 5.25;
-    const spreadBps = 100; // 1% = 0.0525 pontos (maior que 0.0035)
+    const spreadBps = 100; // 1% = 0.0525 pontos (maior que 0.0025)
     const result = applySpread(base, spreadBps);
     const expected = base * 1.01; // 5.3025
     expect(result).toBeCloseTo(expected, 4);

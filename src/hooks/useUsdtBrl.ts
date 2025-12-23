@@ -49,7 +49,7 @@ export function useUsdtBrl(spreadBps?: number): UseUsdtBrlReturn {
   const emitPrice = useCallback((tick: TickerTick, ts: number, currentSpread?: number) => {
     const spreadToUse = currentSpread ?? spreadBps ?? SPREAD_BPS_DEFAULT;
     
-    // Preço base do Nova Solidum = Preço TradingView + spread mínimo (0.0035)
+    // Preço base do Nova Solidum = Preço TradingView + spread mínimo (0.0025)
     const novaSolidumBasePrice = tick.last + MIN_SPREAD_POINTS;
     
     // Aplicar spread percentual sobre o preço base do Nova Solidum
