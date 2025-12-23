@@ -51,8 +51,18 @@ function getSecureHeaders(origin) {
     "X-Response-Time": "0",
   };
 
-  if (origin && ALLOWED_ORIGINS.some(allowed => origin.startsWith(allowed))) {
-    headers["Access-Control-Allow-Origin"] = origin;
+  // Em produção, permitir qualquer origin do domínio Vercel ou localhost
+  // Isso garante que funciona mesmo se o origin não for detectado corretamente
+  const isAllowedOrigin = origin && (
+    ALLOWED_ORIGINS.some(allowed => origin.startsWith(allowed)) ||
+    origin.includes("nova-solidum") ||
+    origin.includes("localhost") ||
+    origin.includes("127.0.0.1")
+  );
+
+  if (isAllowedOrigin || !origin) {
+    // Se não houver origin (requisição do mesmo domínio), permitir
+    headers["Access-Control-Allow-Origin"] = origin || "*";
     headers["Access-Control-Allow-Methods"] = "GET, OPTIONS";
     headers["Access-Control-Allow-Headers"] = "Content-Type, Accept";
   }
@@ -164,33 +174,48 @@ async function fetchFromExchangeRateBackup() {
 // Multi-source com racing
 // ============================================
 async function fetchPriceWithRacing() {
-  try {
-    // Disparar todas as fontes em paralelo, usar a primeira
-    const result = await Promise.any([
-      fetchFromAwesomeAPI(),
-      fetchFromExchangeRate(),
-    ]);
-    return result;
-  } catch {
-    // Todas falharam, tentar backup
-    return await fetchFromExchangeRateBackup();
+  const sources = [
+    () => fetchFromAwesomeAPI(),
+    () => fetchFromExchangeRate(),
+    () => fetchFromExchangeRateBackup(),
+  ];
+  
+  // Tentar todas as fontes em paralelo, usar a primeira que responder com sucesso
+  const results = await Promise.allSettled(sources.map(source => source()));
+  
+  for (const result of results) {
+    if (result.status === 'fulfilled') {
+      return result.value;
+    }
   }
+  
+  // Se todas falharam, lançar o último erro
+  const lastError = results[results.length - 1];
+  if (lastError.status === 'rejected') {
+    throw lastError.reason || new Error("All API sources failed");
+  }
+  
+  throw new Error("All API sources failed");
 }
 
 // ============================================
-// Handler Principal
+// Handler Principal (Edge Runtime)
 // ============================================
-export default async function handler(req) {
+export async function OPTIONS(req) {
+  const origin = req.headers.get("origin") || req.headers.get("referer") || "";
+  const headers = getSecureHeaders(origin);
+  return new Response(null, { status: 204, headers });
+}
+
+export async function GET(req) {
   const startTime = Date.now();
-  const origin = req.headers.get?.("origin") || req.headers?.origin || "";
+  
+  // Edge Runtime: req é sempre um Request object
+  const method = req.method;
+  const origin = req.headers.get("origin") || req.headers.get("referer") || "";
   const headers = getSecureHeaders(origin);
 
-  // CORS preflight
-  if (req.method === "OPTIONS") {
-    return new Response(null, { status: 204, headers });
-  }
-
-  if (req.method !== "GET") {
+  if (method !== "GET") {
     return new Response(
       JSON.stringify({ error: "Method not allowed" }),
       { status: 405, headers }
@@ -226,8 +251,17 @@ export default async function handler(req) {
     console.error("[usdbrl API] Erro:", sanitizeErrorForLog(error));
     headers["X-Response-Time"] = `${Date.now() - startTime}ms`;
     
+    // Em caso de erro, retornar valores do cache se disponível (fallback)
+    if (priceCache && Date.now() - priceCache.ts < 60000) { // Cache válido por 1 minuto em caso de erro
+      headers["X-Cache-Status"] = "ERROR-FALLBACK";
+      return new Response(JSON.stringify(priceCache), { status: 200, headers });
+    }
+    
     return new Response(
-      JSON.stringify({ error: "Erro ao buscar cotação USD/BRL" }),
+      JSON.stringify({ 
+        error: "Erro ao buscar cotação USD/BRL",
+        message: process.env.NODE_ENV === "development" ? error.message : undefined
+      }),
       { status: 500, headers }
     );
   }

@@ -61,6 +61,12 @@ export function connectUsdBrlTicker(
       }
 
       const data = await response.json();
+      
+      // Verificar se a resposta contém erro
+      if (data.error) {
+        throw new Error(data.error);
+      }
+      
       const price = parseFloat(data.price);
       const fetchLatency = Date.now() - startTime;
 
