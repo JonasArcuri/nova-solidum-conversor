@@ -146,15 +146,21 @@ async function fetchPriceWithRacing() {
 // ============================================
 export default async function handler(req) {
   const startTime = Date.now();
-  const origin = req.headers.get?.("origin") || req.headers?.origin || "";
+  
+  // Edge Runtime: req pode ser Request object ou objeto com propriedades
+  const method = req.method || (req instanceof Request ? req.method : "GET");
+  const origin = req.headers?.get?.("origin") || 
+                 req.headers?.get?.("referer") || 
+                 req.headers?.origin || 
+                 "";
   const headers = getSecureHeaders(origin);
 
   // CORS preflight
-  if (req.method === "OPTIONS") {
+  if (method === "OPTIONS") {
     return new Response(null, { status: 204, headers });
   }
 
-  if (req.method !== "GET") {
+  if (method !== "GET") {
     return new Response(
       JSON.stringify({ error: "Method not allowed" }),
       { status: 405, headers }
