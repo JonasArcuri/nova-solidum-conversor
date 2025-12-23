@@ -85,21 +85,22 @@ export function connectUsdBrlTicker(
         throw new Error("Invalid price");
       }
 
+      const tickTs = Date.now();
       const tick: TickerTick = {
         last: price,
         bid: data.bid ?? price,
         ask: data.ask ?? price,
-        ts: Date.now(),
+        ts: data.ts ?? tickTs, // Usar timestamp da API se disponível, senão usar timestamp atual
         latency: data.latency ?? fetchLatency,
       };
 
       // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/1dd75be7-d846-4b5f-a704-c8ee3a50d84e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'usdBrlWs.ts:90',message:'Tick criado com sucesso',data:{last:tick.last,bid:tick.bid,ask:tick.ask},timestamp:Date.now(),sessionId:'debug-session',runId:'prod-debug',hypothesisId:'A'})}).catch(()=>{});
+      fetch('http://127.0.0.1:7242/ingest/1dd75be7-d846-4b5f-a704-c8ee3a50d84e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'usdBrlWs.ts:90',message:'Tick criado com sucesso',data:{last:tick.last,bid:tick.bid,ask:tick.ask,ts:tick.ts,previousLast:lastSuccessTs>0?'exists':'none'},timestamp:Date.now(),sessionId:'debug-session',runId:'prod-debug',hypothesisId:'A'})}).catch(()=>{});
       // #endregion
 
       failureCount = 0;
       backoffMs = INITIAL_BACKOFF_MS;
-      lastSuccessTs = Date.now();
+      lastSuccessTs = tickTs;
       onStatus("live");
       onTick(tick);
     } catch (error) {

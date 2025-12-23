@@ -13,10 +13,11 @@
 export const runtime = "edge";
 
 // ============================================
-// URLs de API (múltiplas fontes)
+// URLs de API (múltiplas fontes) - mesma estrutura da Binance
 // ============================================
+const AWESOMEAPI_URL = "https://economia.awesomeapi.com.br/json/last/USD-BRL";
 const EXCHANGERATE_API_URL = "https://api.exchangerate-api.com/v4/latest/USD";
-const EXCHANGERATE_BACKUP_URL = "https://api.exchangerate-api.com/v4/latest/USD";
+const EXCHANGERATE_BACKUP_URL = "https://open.er-api.com/v6/latest/USD";
 
 // ============================================
 // Cache ultracurto (1 segundo)
@@ -78,7 +79,35 @@ async function fetchWithTimeout(url, timeoutMs = 2000) {
 }
 
 // ============================================
-// Fonte 1: ExchangeRate-API (mais rápido)
+// Fonte 1: AwesomeAPI (mais rápido, atualiza frequentemente)
+// ============================================
+async function fetchFromAwesomeAPI() {
+  const response = await fetchWithTimeout(AWESOMEAPI_URL, 2000);
+  
+  if (!response.ok) {
+    throw new Error(`AwesomeAPI error: ${response.status}`);
+  }
+  
+  const data = await response.json();
+  const usdBrl = data["USD-BRL"] || data["USDBRL"];
+  
+  if (!usdBrl) {
+    throw new Error("Invalid AwesomeAPI response");
+  }
+  
+  const price = parseFloat(usdBrl.bid) || parseFloat(usdBrl.ask) || parseFloat(usdBrl.high) || parseFloat(usdBrl.low);
+  const bid = parseFloat(usdBrl.bid) || price;
+  const ask = parseFloat(usdBrl.ask) || price;
+  
+  if (!isFinite(price) || price <= 0) {
+    throw new Error("Invalid AwesomeAPI price");
+  }
+  
+  return { price, bid, ask };
+}
+
+// ============================================
+// Fonte 2: ExchangeRate-API (backup)
 // ============================================
 async function fetchFromExchangeRate() {
   const response = await fetchWithTimeout(EXCHANGERATE_API_URL, 2000);
@@ -104,7 +133,7 @@ async function fetchFromExchangeRate() {
 }
 
 // ============================================
-// Fonte 2: ExchangeRate-API backup
+// Fonte 3: ExchangeRate-API backup
 // ============================================
 async function fetchFromExchangeRateBackup() {
   const response = await fetchWithTimeout(EXCHANGERATE_BACKUP_URL, 3000);
@@ -129,14 +158,18 @@ async function fetchFromExchangeRateBackup() {
 }
 
 // ============================================
-// Multi-source com racing
+// Multi-source com racing (mesma estrutura da Binance)
 // ============================================
 async function fetchPriceWithRacing() {
   try {
-    // Tentar ExchangeRate-API primeiro
-    return await fetchFromExchangeRate();
+    // Disparar todas as fontes em paralelo, usar a primeira que responder
+    const result = await Promise.any([
+      fetchFromAwesomeAPI(),
+      fetchFromExchangeRate(),
+    ]);
+    return result;
   } catch {
-    // Se falhar, tentar backup
+    // Todas falharam, tentar backup
     return await fetchFromExchangeRateBackup();
   }
 }
@@ -146,21 +179,15 @@ async function fetchPriceWithRacing() {
 // ============================================
 export default async function handler(req) {
   const startTime = Date.now();
-  
-  // Edge Runtime: req pode ser Request object ou objeto com propriedades
-  const method = req.method || (req instanceof Request ? req.method : "GET");
-  const origin = req.headers?.get?.("origin") || 
-                 req.headers?.get?.("referer") || 
-                 req.headers?.origin || 
-                 "";
+  const origin = req.headers.get?.("origin") || req.headers?.origin || "";
   const headers = getSecureHeaders(origin);
 
   // CORS preflight
-  if (method === "OPTIONS") {
+  if (req.method === "OPTIONS") {
     return new Response(null, { status: 204, headers });
   }
 
-  if (method !== "GET") {
+  if (req.method !== "GET") {
     return new Response(
       JSON.stringify({ error: "Method not allowed" }),
       { status: 405, headers }
@@ -168,7 +195,7 @@ export default async function handler(req) {
   }
 
   try {
-    // Verificar cache
+    // Verificar cache (mesma estrutura da Binance)
     const now = Date.now();
     if (priceCache && now < cacheExpiry) {
       headers["X-Cache-Status"] = "HIT";
@@ -179,7 +206,7 @@ export default async function handler(req) {
     // Buscar preço com racing
     const { price, bid, ask } = await fetchPriceWithRacing();
 
-    // Criar resposta
+    // Criar resposta (mesma estrutura da Binance)
     const responseData = {
       price,
       bid,

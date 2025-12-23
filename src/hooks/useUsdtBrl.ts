@@ -9,7 +9,7 @@
  */
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { connectUsdBrlTicker, type TickerTick, type ConnectionStatus } from "@/lib/marketdata/usdBrlWs";
+import { connectUsdtBrlTicker, type TickerTick, type ConnectionStatus } from "@/lib/marketdata/binanceWs";
 import { applySpread, SPREAD_BPS_DEFAULT, MIN_SPREAD_POINTS } from "@/lib/pricing/spread";
 
 // ============================================
@@ -77,18 +77,20 @@ export function useUsdtBrl(spreadBps?: number): UseUsdtBrlReturn {
       setLatency(tick.latency);
     }
     
-    // Sempre atualizar timestamp de dados recebidos
-    lastDataTsRef.current = now;
+    // Sempre atualizar timestamp de dados recebidos (usar timestamp do tick se disponível)
+    const dataTs = tick.ts ?? now;
+    lastDataTsRef.current = dataTs;
 
     // Atualizar imediatamente em tempo real (sem throttle)
-    emitPrice(tick, now, currentSpreadBps);
+    // Usar timestamp do tick para garantir que sempre temos um timestamp único
+    emitPrice(tick, dataTs, currentSpreadBps);
   }, [emitPrice, spreadBps]);
 
   // Função para buscar preço via HTTP (fallback otimizado)
   const fetchPriceFromFallback = useCallback(async (): Promise<void> => {
     try {
       const startTime = Date.now();
-      const response = await fetch("/api/usdbrl", {
+      const response = await fetch("/api/usdtbrl", {
         cache: "no-store",
         headers: { "Accept": "application/json" },
       });
@@ -237,7 +239,7 @@ export function useUsdtBrl(spreadBps?: number): UseUsdtBrlReturn {
   useEffect(() => {
     let wsConnection: { close: () => void } | null = null;
 
-    wsConnection = connectUsdBrlTicker(handleTick, handleStatus);
+    wsConnection = connectUsdtBrlTicker(handleTick, handleStatus);
 
     return () => {
       if (wsConnection) {
