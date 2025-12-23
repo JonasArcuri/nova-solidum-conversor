@@ -10,7 +10,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { connectUsdtBrlTicker, type TickerTick, type ConnectionStatus } from "@/lib/marketdata/binanceWs";
-import { applySpread, SPREAD_BPS_DEFAULT } from "@/lib/pricing/spread";
+import { applySpread, SPREAD_BPS_DEFAULT, MIN_SPREAD_POINTS } from "@/lib/pricing/spread";
 
 // ============================================
 // Configuração de Fallback Otimizada
@@ -48,10 +48,15 @@ export function useUsdtBrl(spreadBps?: number): UseUsdtBrlReturn {
 
   const emitPrice = useCallback((tick: TickerTick, ts: number, currentSpread?: number) => {
     const spreadToUse = currentSpread ?? spreadBps ?? SPREAD_BPS_DEFAULT;
-    const spread = applySpread(tick.last, spreadToUse);
+    
+    // Preço base do Nova Solidum = Preço TradingView + spread mínimo (0.0035)
+    const novaSolidumBasePrice = tick.last + MIN_SPREAD_POINTS;
+    
+    // Aplicar spread percentual sobre o preço base do Nova Solidum
+    const spread = applySpread(novaSolidumBasePrice, spreadToUse);
 
-    if (isFinite(spread) && spread > 0) {
-      setBasePrice(tick.last);
+    if (isFinite(spread) && spread > 0 && isFinite(novaSolidumBasePrice) && novaSolidumBasePrice > 0) {
+      setBasePrice(novaSolidumBasePrice);
       setPriceWithSpread(spread);
       setBid(tick.bid);
       setAsk(tick.ask);
@@ -216,7 +221,8 @@ export function useUsdtBrl(spreadBps?: number): UseUsdtBrlReturn {
     };
   }, []); // Sem dependências - usa refs para valores atualizados
 
-  // Recalcular priceWithSpread quando spreadBps mudar
+  // Recalcular priceWithSpread APENAS quando spreadBps mudar (não quando basePrice mudar)
+  // O emitPrice já atualiza priceWithSpread quando basePrice muda, então não precisamos recalcular aqui
   useEffect(() => {
     if (basePrice !== null) {
       const currentSpreadBps = spreadBps ?? SPREAD_BPS_DEFAULT;
@@ -225,7 +231,7 @@ export function useUsdtBrl(spreadBps?: number): UseUsdtBrlReturn {
         setPriceWithSpread(newSpread);
       }
     }
-  }, [basePrice, spreadBps]);
+  }, [spreadBps]); // Removido basePrice das dependências - emitPrice já cuida disso
 
   // Conectar ao WebSocket
   useEffect(() => {
