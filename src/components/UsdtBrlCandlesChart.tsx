@@ -91,8 +91,10 @@ export function UsdtBrlCandlesChart({
       if (existingScript.onload) {
         // Já tem handler, adicionar nosso handler também
         const originalOnload = existingScript.onload;
-        existingScript.onload = (e) => {
-          originalOnload(e);
+        existingScript.onload = function (e) {
+          if (typeof originalOnload === "function") {
+            originalOnload.call(this, e);
+          }
           createWidget();
         };
       } else {
