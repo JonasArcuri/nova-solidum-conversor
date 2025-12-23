@@ -52,15 +52,18 @@ export function useUsdtBrl(spreadBps?: number): UseUsdtBrlReturn {
     // Preço base do Nova Solidum = Preço TradingView + spread mínimo (0.0025)
     const novaSolidumBasePrice = tick.last + MIN_SPREAD_POINTS;
     
-    // Aplicar spread percentual sobre o preço base do Nova Solidum
+    // SEMPRE recalcular spread baseado no novo preço da API
+    // O spread é recalculado a cada tick, garantindo que atualiza conforme a variação da moeda
+    // Mesmo mudanças pequenas no preço resultam em mudanças proporcionais no spread
     const spread = applySpread(novaSolidumBasePrice, spreadToUse);
 
     if (isFinite(spread) && spread > 0 && isFinite(novaSolidumBasePrice) && novaSolidumBasePrice > 0) {
-      // Sempre atualizar todos os valores, mesmo que sejam similares
-      // O timestamp sempre muda, forçando o React a detectar a mudança
+      // Atualizar preço base - sempre atualizar mesmo se for similar
       setBasePrice(novaSolidumBasePrice);
       
-      // Atualizar spread - sempre recalcular baseado no novo preço
+      // SEMPRE atualizar spread recalculado baseado no novo preço da API
+      // O spread muda proporcionalmente quando a moeda varia
+      // Exemplo: se o preço muda de 5.50 para 5.51, o spread também muda proporcionalmente
       setPriceWithSpread(spread);
       
       // Atualizar bid e ask
@@ -89,8 +92,9 @@ export function useUsdtBrl(spreadBps?: number): UseUsdtBrlReturn {
     const dataTs = tick.ts ?? now;
     lastDataTsRef.current = dataTs;
 
-    // Atualizar imediatamente em tempo real (sem throttle)
-    // Usar timestamp do tick para garantir que sempre temos um timestamp único
+    // SEMPRE chamar emitPrice para garantir que o spread seja recalculado
+    // mesmo que o preço seja muito similar, o spread deve ser recalculado
+    // Isso garante que o valor com spread atualiza conforme a variação da moeda
     emitPrice(tick, dataTs, currentSpreadBps);
   }, [emitPrice, spreadBps]);
 
@@ -231,8 +235,9 @@ export function useUsdtBrl(spreadBps?: number): UseUsdtBrlReturn {
     };
   }, []); // Sem dependências - usa refs para valores atualizados
 
-  // Recalcular priceWithSpread quando basePrice OU spreadBps mudarem
-  // Isso garante que o spread seja sempre atualizado quando a moeda variar
+  // Recalcular priceWithSpread APENAS quando spreadBps mudar (não quando basePrice mudar)
+  // O emitPrice já recalcula o spread quando basePrice muda via handleTick
+  // Este useEffect é apenas para quando o usuário altera o spread manualmente
   useEffect(() => {
     if (basePrice !== null) {
       const currentSpreadBps = spreadBps ?? SPREAD_BPS_DEFAULT;
@@ -241,7 +246,7 @@ export function useUsdtBrl(spreadBps?: number): UseUsdtBrlReturn {
         setPriceWithSpread(newSpread);
       }
     }
-  }, [basePrice, spreadBps]); // Incluir basePrice para recalcular quando a moeda variar
+  }, [spreadBps]); // Apenas quando spreadBps mudar - emitPrice já cuida de atualizar quando basePrice muda
 
   // Conectar ao WebSocket
   useEffect(() => {
