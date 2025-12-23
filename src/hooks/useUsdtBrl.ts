@@ -1,5 +1,5 @@
 /**
- * Hook para cotação USDT/BRL em tempo real - Alta Performance
+ * Hook para cotação USD/BRL em tempo real - Alta Performance
  * 
  * Otimizações:
  * 1. Atualização em tempo real (sem throttle)
@@ -9,7 +9,7 @@
  */
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { connectUsdtBrlTicker, type TickerTick, type ConnectionStatus } from "@/lib/marketdata/binanceWs";
+import { connectUsdBrlTicker, type TickerTick, type ConnectionStatus } from "@/lib/marketdata/usdBrlWs";
 import { applySpread, SPREAD_BPS_DEFAULT, MIN_SPREAD_POINTS } from "@/lib/pricing/spread";
 
 // ============================================
@@ -56,10 +56,18 @@ export function useUsdtBrl(spreadBps?: number): UseUsdtBrlReturn {
     const spread = applySpread(novaSolidumBasePrice, spreadToUse);
 
     if (isFinite(spread) && spread > 0 && isFinite(novaSolidumBasePrice) && novaSolidumBasePrice > 0) {
+      // Sempre atualizar todos os valores, mesmo que sejam similares
+      // O timestamp sempre muda, forçando o React a detectar a mudança
       setBasePrice(novaSolidumBasePrice);
+      
+      // Atualizar spread - sempre recalcular baseado no novo preço
       setPriceWithSpread(spread);
+      
+      // Atualizar bid e ask
       setBid(tick.bid);
       setAsk(tick.ask);
+      
+      // Sempre atualizar timestamp para forçar re-render
       setLastUpdateTs(ts);
       setLatency(tick.latency ?? null);
 
@@ -90,7 +98,7 @@ export function useUsdtBrl(spreadBps?: number): UseUsdtBrlReturn {
   const fetchPriceFromFallback = useCallback(async (): Promise<void> => {
     try {
       const startTime = Date.now();
-      const response = await fetch("/api/usdtbrl", {
+      const response = await fetch("/api/usdbrl", {
         cache: "no-store",
         headers: { "Accept": "application/json" },
       });
@@ -223,8 +231,8 @@ export function useUsdtBrl(spreadBps?: number): UseUsdtBrlReturn {
     };
   }, []); // Sem dependências - usa refs para valores atualizados
 
-  // Recalcular priceWithSpread APENAS quando spreadBps mudar (não quando basePrice mudar)
-  // O emitPrice já atualiza priceWithSpread quando basePrice muda, então não precisamos recalcular aqui
+  // Recalcular priceWithSpread quando basePrice OU spreadBps mudarem
+  // Isso garante que o spread seja sempre atualizado quando a moeda variar
   useEffect(() => {
     if (basePrice !== null) {
       const currentSpreadBps = spreadBps ?? SPREAD_BPS_DEFAULT;
@@ -233,13 +241,13 @@ export function useUsdtBrl(spreadBps?: number): UseUsdtBrlReturn {
         setPriceWithSpread(newSpread);
       }
     }
-  }, [spreadBps]); // Removido basePrice das dependências - emitPrice já cuida disso
+  }, [basePrice, spreadBps]); // Incluir basePrice para recalcular quando a moeda variar
 
   // Conectar ao WebSocket
   useEffect(() => {
     let wsConnection: { close: () => void } | null = null;
 
-    wsConnection = connectUsdtBrlTicker(handleTick, handleStatus);
+    wsConnection = connectUsdBrlTicker(handleTick, handleStatus);
 
     return () => {
       if (wsConnection) {

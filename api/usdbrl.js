@@ -13,18 +13,18 @@
 export const runtime = "edge";
 
 // ============================================
-// URLs de API (múltiplas fontes) - mesma estrutura da Binance
+// URLs de API (múltiplas fontes)
 // ============================================
 const AWESOMEAPI_URL = "https://economia.awesomeapi.com.br/json/last/USD-BRL";
 const EXCHANGERATE_API_URL = "https://api.exchangerate-api.com/v4/latest/USD";
 const EXCHANGERATE_BACKUP_URL = "https://open.er-api.com/v6/latest/USD";
 
 // ============================================
-// Cache ultracurto (1 segundo)
+// Cache desabilitado para atualizações em tempo real
 // ============================================
 let priceCache = null;
 let cacheExpiry = 0;
-const CACHE_TTL_MS = 1000; // 1 segundo - dados de cotação mudam rápido
+const CACHE_TTL_MS = 0; // Cache desabilitado - sempre buscar valores frescos
 
 // ============================================
 // Segurança
@@ -79,10 +79,13 @@ async function fetchWithTimeout(url, timeoutMs = 2000) {
 }
 
 // ============================================
-// Fonte 1: AwesomeAPI (mais rápido, atualiza frequentemente)
+// Fonte 1: AwesomeAPI (mais rápido, bid/ask preciso)
 // ============================================
 async function fetchFromAwesomeAPI() {
-  const response = await fetchWithTimeout(AWESOMEAPI_URL, 2000);
+  // Adicionar timestamp único para evitar cache do navegador/CDN e forçar atualização
+  const cacheBuster = Date.now();
+  const url = `${AWESOMEAPI_URL}?t=${cacheBuster}&_=${cacheBuster}`;
+  const response = await fetchWithTimeout(url, 2000);
   
   if (!response.ok) {
     throw new Error(`AwesomeAPI error: ${response.status}`);
@@ -95,15 +98,15 @@ async function fetchFromAwesomeAPI() {
     throw new Error("Invalid AwesomeAPI response");
   }
   
-  const price = parseFloat(usdBrl.bid) || parseFloat(usdBrl.ask) || parseFloat(usdBrl.high) || parseFloat(usdBrl.low);
-  const bid = parseFloat(usdBrl.bid) || price;
-  const ask = parseFloat(usdBrl.ask) || price;
+  const bid = parseFloat(usdBrl.bid);
+  const ask = parseFloat(usdBrl.ask);
+  const price = bid && ask ? (bid + ask) / 2 : parseFloat(usdBrl.high) || parseFloat(usdBrl.low);
   
   if (!isFinite(price) || price <= 0) {
     throw new Error("Invalid AwesomeAPI price");
   }
   
-  return { price, bid, ask };
+  return { price, bid: bid || price, ask: ask || price };
 }
 
 // ============================================
@@ -158,11 +161,11 @@ async function fetchFromExchangeRateBackup() {
 }
 
 // ============================================
-// Multi-source com racing (mesma estrutura da Binance)
+// Multi-source com racing
 // ============================================
 async function fetchPriceWithRacing() {
   try {
-    // Disparar todas as fontes em paralelo, usar a primeira que responder
+    // Disparar todas as fontes em paralelo, usar a primeira
     const result = await Promise.any([
       fetchFromAwesomeAPI(),
       fetchFromExchangeRate(),
@@ -195,27 +198,22 @@ export default async function handler(req) {
   }
 
   try {
-    // Verificar cache (mesma estrutura da Binance)
+    // Sempre buscar valores frescos (cache desabilitado para tempo real)
     const now = Date.now();
-    if (priceCache && now < cacheExpiry) {
-      headers["X-Cache-Status"] = "HIT";
-      headers["X-Response-Time"] = `${now - startTime}ms`;
-      return new Response(JSON.stringify(priceCache), { status: 200, headers });
-    }
-
+    
     // Buscar preço com racing
     const { price, bid, ask } = await fetchPriceWithRacing();
 
-    // Criar resposta (mesma estrutura da Binance)
+    // Criar resposta com timestamp sempre atualizado
     const responseData = {
       price,
-      bid,
-      ask,
-      ts: now,
+      bid: bid || price, // Usar bid da API ou price como fallback
+      ask: ask || price, // Usar ask da API ou price como fallback
+      ts: now, // Sempre usar timestamp atual para garantir atualizações
       latency: Date.now() - startTime,
     };
 
-    // Salvar no cache
+    // Salvar no cache (mesmo que TTL seja 0, útil para debug)
     priceCache = responseData;
     cacheExpiry = now + CACHE_TTL_MS;
 
@@ -234,4 +232,3 @@ export default async function handler(req) {
     );
   }
 }
-

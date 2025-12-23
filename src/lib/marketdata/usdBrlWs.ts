@@ -17,7 +17,7 @@ export type ConnectionStatus = "connecting" | "live" | "reconnecting" | "fallbac
 type OnTickCallback = (tick: TickerTick) => void;
 type OnStatusCallback = (status: ConnectionStatus) => void;
 
-const POLL_INTERVAL_MS = 1500; // 1.5 segundos
+const POLL_INTERVAL_MS = 1000; // 1 segundo - atualização mais frequente para tempo real
 const MAX_BACKOFF_MS = 5000;
 const INITIAL_BACKOFF_MS = 100;
 
@@ -50,38 +50,21 @@ export function connectUsdBrlTicker(
 
   const fetchPrice = async (): Promise<void> => {
     try {
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/1dd75be7-d846-4b5f-a704-c8ee3a50d84e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'usdBrlWs.ts:52',message:'Iniciando fetchPrice',data:{url:'/api/usdbrl',env:typeof window!=='undefined'?'browser':'server'},timestamp:Date.now(),sessionId:'debug-session',runId:'prod-debug',hypothesisId:'A'})}).catch(()=>{});
-      // #endregion
       const startTime = Date.now();
       const response = await fetch("/api/usdbrl", {
         cache: "no-store",
         headers: { "Accept": "application/json" },
       });
 
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/1dd75be7-d846-4b5f-a704-c8ee3a50d84e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'usdBrlWs.ts:60',message:'Resposta recebida',data:{status:response.status,ok:response.ok,statusText:response.statusText,headers:Object.fromEntries(response.headers.entries())},timestamp:Date.now(),sessionId:'debug-session',runId:'prod-debug',hypothesisId:'B'})}).catch(()=>{});
-      // #endregion
-
       if (!response.ok) {
-        // #region agent log
-        const errorText = await response.text().catch(()=>'');
-        fetch('http://127.0.0.1:7242/ingest/1dd75be7-d846-4b5f-a704-c8ee3a50d84e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'usdBrlWs.ts:65',message:'Erro HTTP',data:{status:response.status,statusText:response.statusText,errorText:errorText.substring(0,200)},timestamp:Date.now(),sessionId:'debug-session',runId:'prod-debug',hypothesisId:'C'})}).catch(()=>{});
-        // #endregion
         throw new Error(`HTTP ${response.status}`);
       }
 
       const data = await response.json();
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/1dd75be7-d846-4b5f-a704-c8ee3a50d84e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'usdBrlWs.ts:72',message:'Dados parseados',data:{hasPrice:!!data.price,price:data.price,hasBid:!!data.bid,hasAsk:!!data.ask,hasError:!!data.error},timestamp:Date.now(),sessionId:'debug-session',runId:'prod-debug',hypothesisId:'D'})}).catch(()=>{});
-      // #endregion
       const price = parseFloat(data.price);
       const fetchLatency = Date.now() - startTime;
 
       if (!isFinite(price) || price <= 0) {
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/1dd75be7-d846-4b5f-a704-c8ee3a50d84e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'usdBrlWs.ts:78',message:'Preço inválido',data:{price:price,isFinite:isFinite(price)},timestamp:Date.now(),sessionId:'debug-session',runId:'prod-debug',hypothesisId:'E'})}).catch(()=>{});
-        // #endregion
         throw new Error("Invalid price");
       }
 
@@ -90,23 +73,17 @@ export function connectUsdBrlTicker(
         last: price,
         bid: data.bid ?? price,
         ask: data.ask ?? price,
-        ts: data.ts ?? tickTs, // Usar timestamp da API se disponível, senão usar timestamp atual
+        ts: tickTs, // Sempre usar timestamp atual para garantir que cada tick é único
         latency: data.latency ?? fetchLatency,
       };
-
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/1dd75be7-d846-4b5f-a704-c8ee3a50d84e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'usdBrlWs.ts:90',message:'Tick criado com sucesso',data:{last:tick.last,bid:tick.bid,ask:tick.ask,ts:tick.ts,previousLast:lastSuccessTs>0?'exists':'none'},timestamp:Date.now(),sessionId:'debug-session',runId:'prod-debug',hypothesisId:'A'})}).catch(()=>{});
-      // #endregion
 
       failureCount = 0;
       backoffMs = INITIAL_BACKOFF_MS;
       lastSuccessTs = tickTs;
       onStatus("live");
+      // Sempre chamar onTick, mesmo que os valores sejam similares, para garantir atualização
       onTick(tick);
     } catch (error) {
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/1dd75be7-d846-4b5f-a704-c8ee3a50d84e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'usdBrlWs.ts:100',message:'Erro capturado',data:{errorMessage:error instanceof Error?error.message:String(error),errorName:error instanceof Error?error.name:'Unknown',failureCount:failureCount+1},timestamp:Date.now(),sessionId:'debug-session',runId:'prod-debug',hypothesisId:'F'})}).catch(()=>{});
-      // #endregion
       failureCount++;
       if (failureCount >= 3) {
         onStatus("reconnecting");

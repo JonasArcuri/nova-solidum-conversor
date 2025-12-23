@@ -142,7 +142,7 @@ export function UsdtBrlCandlesChart({
       try {
         new (window as any).TradingView.widget({
           autosize: true,
-          symbol: "BINANCE:USDTBRL", // Símbolo USDT/BRL
+          symbol: "FX_IDC:USDBRL", // Símbolo USD/BRL (Dólar Americano)
           interval: interval,
           timezone: "America/Sao_Paulo",
           theme: "light",
