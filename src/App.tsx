@@ -86,7 +86,7 @@ function App() {
         </div>
 
         <div className="quote-card">
-        <h2 className="quote-title">Cotação USDT/BRL</h2>
+        <h2 className="quote-title">Cotação USD/BRL</h2>
         
         {/* Tabs */}
         <div className="tabs">
@@ -123,7 +123,7 @@ function App() {
                 <div className="detail-row">
                   <span className="detail-label">Preço base:</span>
                   <div className="detail-value-ticker">
-                    <TradingViewTicker symbol="BINANCE:USDTBRL" locale="pt_BR" colorTheme="light" />
+                    <TradingViewTicker symbol="FX_IDC:USDBRL" locale="pt_BR" colorTheme="light" />
                   </div>
                 </div>
                 {bid !== null && (

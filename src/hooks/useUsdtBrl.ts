@@ -9,7 +9,7 @@
  */
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { connectUsdtBrlTicker, type TickerTick, type ConnectionStatus } from "@/lib/marketdata/binanceWs";
+import { connectUsdBrlTicker, type TickerTick, type ConnectionStatus } from "@/lib/marketdata/usdBrlWs";
 import { applySpread, SPREAD_BPS_DEFAULT, MIN_SPREAD_POINTS } from "@/lib/pricing/spread";
 
 // ============================================
@@ -88,7 +88,7 @@ export function useUsdtBrl(spreadBps?: number): UseUsdtBrlReturn {
   const fetchPriceFromFallback = useCallback(async (): Promise<void> => {
     try {
       const startTime = Date.now();
-      const response = await fetch("/api/usdtbrl", {
+      const response = await fetch("/api/usdbrl", {
         cache: "no-store",
         headers: { "Accept": "application/json" },
       });
@@ -237,7 +237,7 @@ export function useUsdtBrl(spreadBps?: number): UseUsdtBrlReturn {
   useEffect(() => {
     let wsConnection: { close: () => void } | null = null;
 
-    wsConnection = connectUsdtBrlTicker(handleTick, handleStatus);
+    wsConnection = connectUsdBrlTicker(handleTick, handleStatus);
 
     return () => {
       if (wsConnection) {
