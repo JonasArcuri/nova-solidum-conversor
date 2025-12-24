@@ -27,6 +27,7 @@ export interface UseUsdtBrlReturn {
   lastUpdateTs: number | null;
   status: ConnectionStatus;
   latency: number | null;
+  updateKey: number; // Chave de atualização para forçar re-render mesmo quando valores são iguais
 }
 
 export function useUsdtBrl(spreadBps?: number): UseUsdtBrlReturn {
@@ -37,6 +38,7 @@ export function useUsdtBrl(spreadBps?: number): UseUsdtBrlReturn {
   const [lastUpdateTs, setLastUpdateTs] = useState<number | null>(null);
   const [status, setStatus] = useState<ConnectionStatus>("connecting");
   const [latency, setLatency] = useState<number | null>(null);
+  const [updateKey, setUpdateKey] = useState<number>(0);
 
   const lastEmittedPriceRef = useRef<number | null>(null);
   const wsFailureCountRef = useRef<number>(0);
@@ -45,6 +47,9 @@ export function useUsdtBrl(spreadBps?: number): UseUsdtBrlReturn {
   const fallbackIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const preemptiveCheckIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const isUsingFallbackRef = useRef<boolean>(false);
+  const lastBasePriceRef = useRef<number | null>(null);
+  const lastBidRef = useRef<number | null>(null);
+  const lastAskRef = useRef<number | null>(null);
 
   const emitPrice = useCallback((tick: TickerTick, ts: number, currentSpread?: number) => {
     const spreadToUse = currentSpread ?? spreadBps ?? SPREAD_BPS_DEFAULT;
@@ -58,24 +63,22 @@ export function useUsdtBrl(spreadBps?: number): UseUsdtBrlReturn {
     const spread = applySpread(novaSolidumBasePrice, spreadToUse);
 
     if (isFinite(spread) && spread > 0 && isFinite(novaSolidumBasePrice) && novaSolidumBasePrice > 0) {
-      // Atualizar preço base - sempre atualizar mesmo se for similar
+      // SEMPRE atualizar todos os valores e o updateKey para forçar re-render
+      // O updateKey sempre muda (baseado no timestamp), garantindo que o React detecta a mudança
+      // mesmo quando os valores numéricos são iguais
       setBasePrice(novaSolidumBasePrice);
-      
-      // SEMPRE atualizar spread recalculado baseado no novo preço da API
-      // O spread muda proporcionalmente quando a moeda varia
-      // Exemplo: se o preço muda de 5.50 para 5.51, o spread também muda proporcionalmente
       setPriceWithSpread(spread);
-      
-      // Atualizar bid e ask
       setBid(tick.bid);
       setAsk(tick.ask);
-      
-      // Sempre atualizar timestamp para forçar re-render
       setLastUpdateTs(ts);
       setLatency(tick.latency ?? null);
+      setUpdateKey(ts); // Usar timestamp como chave de atualização - sempre muda
 
       lastEmittedPriceRef.current = tick.last;
       lastDataTsRef.current = ts;
+      lastBasePriceRef.current = novaSolidumBasePrice;
+      lastBidRef.current = tick.bid;
+      lastAskRef.current = tick.ask;
     }
   }, [spreadBps]);
 
@@ -275,5 +278,6 @@ export function useUsdtBrl(spreadBps?: number): UseUsdtBrlReturn {
     lastUpdateTs,
     status,
     latency,
+    updateKey,
   };
 }

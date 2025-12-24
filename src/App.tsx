@@ -14,7 +14,7 @@ function App() {
   const [spreadBps, setSpreadBps] = useState<number>(SPREAD_BPS_DEFAULT);
   const [spreadInputValue, setSpreadInputValue] = useState<string>((SPREAD_BPS_DEFAULT / 100).toFixed(2));
   const [timeframe, setTimeframe] = useState<Timeframe>("24H");
-  const { priceWithSpread, basePrice, bid, ask, lastUpdateTs } = useUsdtBrl(spreadBps);
+  const { priceWithSpread, basePrice, bid, ask, lastUpdateTs, updateKey } = useUsdtBrl(spreadBps);
 
   const formatPrice = (price: number | null): string => {
     if (price === null || !isFinite(price)) {
@@ -114,7 +114,7 @@ function App() {
         {activeTab === "quote" && (
           <>
             <div className="quote-price">
-              <span className="price-value">{formatPrice(priceWithSpread)}</span>
+              <span className="price-value" key={`price-${updateKey}`}>{formatPrice(priceWithSpread)}</span>
               <p className="price-info">Valor com spread aplicado</p>
             </div>
 
@@ -129,13 +129,13 @@ function App() {
                 {bid !== null && (
                   <div className="detail-row">
                     <span className="detail-label">Bid:</span>
-                    <span className="detail-value">{formatPrice(bid)}</span>
+                    <span className="detail-value" key={`bid-${updateKey}`}>{formatPrice(bid)}</span>
                   </div>
                 )}
                 {ask !== null && (
                   <div className="detail-row">
                     <span className="detail-label">Ask:</span>
-                    <span className="detail-value">{formatPrice(ask)}</span>
+                    <span className="detail-value" key={`ask-${updateKey}`}>{formatPrice(ask)}</span>
                   </div>
                 )}
                 <div className="detail-row">
