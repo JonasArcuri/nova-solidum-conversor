@@ -51,20 +51,24 @@ function getSecureHeaders(origin) {
     "X-Response-Time": "0",
   };
 
-  // Em produção, permitir qualquer origin do domínio Vercel ou localhost
-  // Isso garante que funciona mesmo se o origin não for detectado corretamente
-  const isAllowedOrigin = origin && (
-    ALLOWED_ORIGINS.some(allowed => origin.startsWith(allowed)) ||
-    origin.includes("nova-solidum") ||
-    origin.includes("localhost") ||
-    origin.includes("127.0.0.1")
-  );
+  try {
+    // Em produção, permitir qualquer origin do domínio Vercel ou localhost
+    // Isso garante que funciona mesmo se o origin não for detectado corretamente
+    const isAllowedOrigin = origin && (
+      ALLOWED_ORIGINS.some(allowed => origin.startsWith(allowed)) ||
+      origin.includes("nova-solidum") ||
+      origin.includes("localhost") ||
+      origin.includes("127.0.0.1")
+    );
 
-  if (isAllowedOrigin || !origin) {
-    // Se não houver origin (requisição do mesmo domínio), permitir
-    headers["Access-Control-Allow-Origin"] = origin || "*";
-    headers["Access-Control-Allow-Methods"] = "GET, OPTIONS";
-    headers["Access-Control-Allow-Headers"] = "Content-Type, Accept";
+    if (isAllowedOrigin || !origin) {
+      // Se não houver origin (requisição do mesmo domínio), permitir
+      headers["Access-Control-Allow-Origin"] = origin || "*";
+      headers["Access-Control-Allow-Methods"] = "GET, OPTIONS";
+      headers["Access-Control-Allow-Headers"] = "Content-Type, Accept";
+    }
+  } catch (headerError) {
+    // Ignorar erros de header
   }
 
   return headers;
@@ -74,17 +78,25 @@ function getSecureHeaders(origin) {
 // Fetch com timeout
 // ============================================
 async function fetchWithTimeout(url, timeoutMs = 2000) {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  let timeoutId = null;
   
   try {
+    const controller = new AbortController();
+    timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+    
     const response = await fetch(url, {
       headers: { "Accept": "application/json" },
       signal: controller.signal,
     });
+    
     return response;
+  } catch (fetchError) {
+    throw fetchError;
   } finally {
-    clearTimeout(timeoutId);
+    // clearTimeout pode não existir no Edge Runtime
+    if (typeof clearTimeout !== 'undefined' && timeoutId !== null) {
+      clearTimeout(timeoutId);
+    }
   }
 }
 
@@ -92,31 +104,35 @@ async function fetchWithTimeout(url, timeoutMs = 2000) {
 // Fonte 1: AwesomeAPI (mais rápido, bid/ask preciso)
 // ============================================
 async function fetchFromAwesomeAPI() {
-  // Adicionar timestamp único para evitar cache do navegador/CDN e forçar atualização
-  const cacheBuster = Date.now();
-  const url = `${AWESOMEAPI_URL}?t=${cacheBuster}&_=${cacheBuster}`;
-  const response = await fetchWithTimeout(url, 2000);
-  
-  if (!response.ok) {
-    throw new Error(`AwesomeAPI error: ${response.status}`);
+  try {
+    // Adicionar timestamp único para evitar cache do navegador/CDN e forçar atualização
+    const cacheBuster = Date.now();
+    const url = `${AWESOMEAPI_URL}?t=${cacheBuster}&_=${cacheBuster}`;
+    const response = await fetchWithTimeout(url, 2000);
+    
+    if (!response.ok) {
+      throw new Error(`AwesomeAPI error: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    const usdBrl = data["USD-BRL"] || data["USDBRL"];
+    
+    if (!usdBrl) {
+      throw new Error("Invalid AwesomeAPI response");
+    }
+    
+    const bid = parseFloat(usdBrl.bid);
+    const ask = parseFloat(usdBrl.ask);
+    const price = bid && ask ? (bid + ask) / 2 : parseFloat(usdBrl.high) || parseFloat(usdBrl.low);
+    
+    if (!isFinite(price) || price <= 0) {
+      throw new Error("Invalid AwesomeAPI price");
+    }
+    
+    return { price, bid: bid || price, ask: ask || price };
+  } catch (apiError) {
+    throw apiError;
   }
-  
-  const data = await response.json();
-  const usdBrl = data["USD-BRL"] || data["USDBRL"];
-  
-  if (!usdBrl) {
-    throw new Error("Invalid AwesomeAPI response");
-  }
-  
-  const bid = parseFloat(usdBrl.bid);
-  const ask = parseFloat(usdBrl.ask);
-  const price = bid && ask ? (bid + ask) / 2 : parseFloat(usdBrl.high) || parseFloat(usdBrl.low);
-  
-  if (!isFinite(price) || price <= 0) {
-    throw new Error("Invalid AwesomeAPI price");
-  }
-  
-  return { price, bid: bid || price, ask: ask || price };
 }
 
 // ============================================
@@ -210,19 +226,19 @@ export async function OPTIONS(req) {
 export async function GET(req) {
   const startTime = Date.now();
   
-  // Edge Runtime: req é sempre um Request object
-  const method = req.method;
-  const origin = req.headers.get("origin") || req.headers.get("referer") || "";
-  const headers = getSecureHeaders(origin);
-
-  if (method !== "GET") {
-    return new Response(
-      JSON.stringify({ error: "Method not allowed" }),
-      { status: 405, headers }
-    );
-  }
-
   try {
+    // Edge Runtime: req é sempre um Request object
+    const method = req.method;
+    const origin = req.headers.get("origin") || req.headers.get("referer") || "";
+    const headers = getSecureHeaders(origin);
+
+    if (method !== "GET") {
+      return new Response(
+        JSON.stringify({ error: "Method not allowed" }),
+        { status: 405, headers }
+      );
+    }
+
     // Sempre buscar valores frescos (cache desabilitado para tempo real)
     const now = Date.now();
     
@@ -249,20 +265,30 @@ export async function GET(req) {
     
   } catch (error) {
     console.error("[usdbrl API] Erro:", sanitizeErrorForLog(error));
-    headers["X-Response-Time"] = `${Date.now() - startTime}ms`;
     
-    // Em caso de erro, retornar valores do cache se disponível (fallback)
-    if (priceCache && Date.now() - priceCache.ts < 60000) { // Cache válido por 1 minuto em caso de erro
-      headers["X-Cache-Status"] = "ERROR-FALLBACK";
-      return new Response(JSON.stringify(priceCache), { status: 200, headers });
+    try {
+      const origin = req.headers?.get("origin") || req.headers?.get("referer") || "";
+      const headers = getSecureHeaders(origin);
+      headers["X-Response-Time"] = `${Date.now() - startTime}ms`;
+      
+      // Em caso de erro, retornar valores do cache se disponível (fallback)
+      if (priceCache && Date.now() - priceCache.ts < 60000) { // Cache válido por 1 minuto em caso de erro
+        headers["X-Cache-Status"] = "ERROR-FALLBACK";
+        return new Response(JSON.stringify(priceCache), { status: 200, headers });
+      }
+      
+      return new Response(
+        JSON.stringify({ 
+          error: "Erro ao buscar cotação USD/BRL",
+          message: process.env.NODE_ENV === "development" ? error.message : undefined
+        }),
+        { status: 500, headers }
+      );
+    } catch (innerError) {
+      return new Response(
+        JSON.stringify({ error: "Erro interno do servidor" }),
+        { status: 500, headers: { "Content-Type": "application/json" } }
+      );
     }
-    
-    return new Response(
-      JSON.stringify({ 
-        error: "Erro ao buscar cotação USD/BRL",
-        message: process.env.NODE_ENV === "development" ? error.message : undefined
-      }),
-      { status: 500, headers }
-    );
   }
 }
