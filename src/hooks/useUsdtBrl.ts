@@ -13,11 +13,9 @@ import { connectUsdtBrlTicker, type TickerTick, type ConnectionStatus } from "@/
 import { applySpread, SPREAD_BPS_DEFAULT, MIN_SPREAD_POINTS } from "@/lib/pricing/spread";
 
 // ============================================
-// Configuração de Fallback Otimizada
+// Configuração (fallback desabilitado - WebSocket é fonte única)
 // ============================================
-const MAX_WS_FAILURES = 2;        // Reduzido para 2 para ativar fallback mais rapidamente
-const FALLBACK_POLL_INTERVAL = 2000; // 2 segundos (era 5s)
-const PREEMPTIVE_FALLBACK_MS = 3000; // Ativar fallback após 3s sem dados (reduzido de 5s)
+const FALLBACK_POLL_INTERVAL = 2000; // Mantido para referência futura
 
 export interface UseUsdtBrlReturn {
   basePrice: number | null;
@@ -179,8 +177,8 @@ export function useUsdtBrl(spreadBps?: number): UseUsdtBrlReturn {
     }, FALLBACK_POLL_INTERVAL);
   }, [fetchPriceFromFallback]);
 
-  // Parar fallback
-  const stopFallback = useCallback(() => {
+  // Parar fallback (mantido para uso futuro se necessário)
+  const _stopFallback = useCallback(() => {
     if (!isUsingFallbackRef.current) return;
     
     isUsingFallbackRef.current = false;
@@ -189,41 +187,29 @@ export function useUsdtBrl(spreadBps?: number): UseUsdtBrlReturn {
       fallbackIntervalRef.current = null;
     }
   }, []);
+  void _stopFallback; // Silenciar warning de variável não utilizada
 
   const handleStatus = useCallback((newStatus: ConnectionStatus) => {
     // #region agent log
     fetch('http://127.0.0.1:7242/ingest/1dd75be7-d846-4b5f-a704-c8ee3a50d84e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useUsdtBrl.ts:handleStatus',message:'Status changed',data:{newStatus,wsFailureCount:wsFailureCountRef.current,lastWsSuccessTs:lastWsSuccessTsRef.current},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A'})}).catch(()=>{});
     // #endregion
-    // Sempre mostrar "live" para o usuário (UX suave)
-    // Internamente gerenciamos reconexão e fallback silenciosamente
+    // #region production debug
+    console.log('[DEBUG-PROD] handleStatus:', newStatus);
+    // #endregion
+    
+    // WebSocket é a única fonte de dados - não usar fallback
     if (newStatus === "live") {
       setStatus("live");
       lastWsSuccessTsRef.current = Date.now();
       wsFailureCountRef.current = 0;
-      stopFallback();
     } else if (newStatus === "connecting") {
-      // Primeira conexão - mostrar conectando
-      if (lastWsSuccessTsRef.current === 0) {
-        setStatus("connecting");
-      }
-      // Reconexões subsequentes - manter "live" visualmente
+      setStatus("connecting");
     } else if (newStatus === "reconnecting") {
-      // Não notificar usuário sobre reconexão - manter "live"
-      // Apenas gerenciar fallback silenciosamente
-      const timeSinceLastSuccess = Date.now() - lastWsSuccessTsRef.current;
-      
-      // Incrementar contador de falhas mais rapidamente
-      if (timeSinceLastSuccess > 3000 || lastWsSuccessTsRef.current === 0) {
-        wsFailureCountRef.current += 1;
-      }
-
-      // Ativar fallback silenciosamente para manter dados fluindo
-      // Ativar mais rapidamente se nunca teve sucesso ou após poucas falhas
-      if (wsFailureCountRef.current >= MAX_WS_FAILURES || lastWsSuccessTsRef.current === 0) {
-        startFallback();
-      }
+      // Mostrar reconectando mas NÃO ativar fallback
+      // O WebSocket vai reconectar automaticamente
+      setStatus("reconnecting");
     }
-  }, [startFallback, stopFallback]);
+  }, []);
 
   // Verificação preemptiva: se não receber dados por X segundos, ativar fallback silenciosamente
   // Usar refs para evitar dependências instáveis que causam recriações
@@ -236,6 +222,10 @@ export function useUsdtBrl(spreadBps?: number): UseUsdtBrlReturn {
     statusRef.current = status;
   }, [startFallback, status]);
 
+  // DESABILITADO: O fallback preemptivo estava interferindo com o WebSocket
+  // O WebSocket da Binance é a fonte principal e não precisa de fallback
+  // Se o WebSocket falhar, o handleStatus vai gerenciar a reconexão
+  /*
   useEffect(() => {
     // Limpar intervalo anterior antes de criar novo (evitar vazamento)
     if (preemptiveCheckIntervalRef.current) {
@@ -263,6 +253,7 @@ export function useUsdtBrl(spreadBps?: number): UseUsdtBrlReturn {
       }
     };
   }, []); // Sem dependências - usa refs para valores atualizados
+  */
 
   // Recalcular priceWithSpread APENAS quando spreadBps mudar (não quando basePrice mudar)
   // O emitPrice já recalcula o spread quando basePrice muda via handleTick
