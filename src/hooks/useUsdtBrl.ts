@@ -62,6 +62,10 @@ export function useUsdtBrl(spreadBps?: number): UseUsdtBrlReturn {
     // Mesmo mudanças pequenas no preço resultam em mudanças proporcionais no spread
     const spread = applySpread(novaSolidumBasePrice, spreadToUse);
 
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/1dd75be7-d846-4b5f-a704-c8ee3a50d84e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useUsdtBrl.ts:emitPrice',message:'emitPrice called',data:{tickLast:tick.last,tickBid:tick.bid,tickAsk:tick.ask,novaSolidumBasePrice,spread,isValid:isFinite(spread)&&spread>0},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'E'})}).catch(()=>{});
+    // #endregion
+
     if (isFinite(spread) && spread > 0 && isFinite(novaSolidumBasePrice) && novaSolidumBasePrice > 0) {
       // SEMPRE atualizar todos os valores e o updateKey para forçar re-render
       // O updateKey sempre muda (baseado no timestamp), garantindo que o React detecta a mudança
@@ -103,6 +107,9 @@ export function useUsdtBrl(spreadBps?: number): UseUsdtBrlReturn {
 
   // Função para buscar preço via HTTP (fallback otimizado)
   const fetchPriceFromFallback = useCallback(async (): Promise<void> => {
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/1dd75be7-d846-4b5f-a704-c8ee3a50d84e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useUsdtBrl.ts:fetchPriceFromFallback',message:'fetchPriceFromFallback START',data:{},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'B'})}).catch(()=>{});
+    // #endregion
     try {
       const startTime = Date.now();
       const response = await fetch("/api/usdbrl", {
@@ -111,12 +118,19 @@ export function useUsdtBrl(spreadBps?: number): UseUsdtBrlReturn {
       });
       
       if (!response.ok) {
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/1dd75be7-d846-4b5f-a704-c8ee3a50d84e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useUsdtBrl.ts:fetchPriceFromFallback',message:'HTTP response NOT OK',data:{status:response.status},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'D'})}).catch(()=>{});
+        // #endregion
         throw new Error(`HTTP ${response.status}`);
       }
       
       const data = await response.json();
       const price = parseFloat(data.price);
       const fetchLatency = Date.now() - startTime;
+
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/1dd75be7-d846-4b5f-a704-c8ee3a50d84e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useUsdtBrl.ts:fetchPriceFromFallback',message:'API response received',data:{price,bid:data.bid,ask:data.ask,rawData:data,isValidPrice:isFinite(price)&&price>0},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'C'})}).catch(()=>{});
+      // #endregion
 
       if (isFinite(price) && price > 0) {
         const tick: TickerTick = {
@@ -129,8 +143,10 @@ export function useUsdtBrl(spreadBps?: number): UseUsdtBrlReturn {
         handleTick(tick);
         wsFailureCountRef.current = 0;
       }
-    } catch {
-      // Erro silencioso
+    } catch (err) {
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/1dd75be7-d846-4b5f-a704-c8ee3a50d84e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useUsdtBrl.ts:fetchPriceFromFallback',message:'Fetch ERROR',data:{error:String(err)},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'D'})}).catch(()=>{});
+      // #endregion
     }
   }, [handleTick]);
 
@@ -168,6 +184,9 @@ export function useUsdtBrl(spreadBps?: number): UseUsdtBrlReturn {
   }, []);
 
   const handleStatus = useCallback((newStatus: ConnectionStatus) => {
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/1dd75be7-d846-4b5f-a704-c8ee3a50d84e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useUsdtBrl.ts:handleStatus',message:'Status changed',data:{newStatus,wsFailureCount:wsFailureCountRef.current,lastWsSuccessTs:lastWsSuccessTsRef.current},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A'})}).catch(()=>{});
+    // #endregion
     // Sempre mostrar "live" para o usuário (UX suave)
     // Internamente gerenciamos reconexão e fallback silenciosamente
     if (newStatus === "live") {

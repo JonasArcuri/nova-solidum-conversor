@@ -49,6 +49,12 @@ export function connectUsdBrlTicker(
   };
 
   const fetchPrice = async (): Promise<void> => {
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/1dd75be7-d846-4b5f-a704-c8ee3a50d84e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'usdBrlWs.ts:fetchPrice',message:'fetchPrice START',data:{failureCount},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'B'})}).catch(()=>{});
+    // #endregion
+    // #region production debug
+    console.log('[DEBUG-PROD] fetchPrice START', { failureCount });
+    // #endregion
     try {
       const startTime = Date.now();
       const response = await fetch("/api/usdbrl", {
@@ -56,12 +62,23 @@ export function connectUsdBrlTicker(
         headers: { "Accept": "application/json" },
       });
 
+      // #region production debug
+      console.log('[DEBUG-PROD] fetch response', { ok: response.ok, status: response.status });
+      // #endregion
+
       if (!response.ok) {
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/1dd75be7-d846-4b5f-a704-c8ee3a50d84e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'usdBrlWs.ts:fetchPrice',message:'HTTP NOT OK',data:{status:response.status},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'D'})}).catch(()=>{});
+        // #endregion
         throw new Error(`HTTP ${response.status}`);
       }
 
       const data = await response.json();
       
+      // #region production debug
+      console.log('[DEBUG-PROD] API data', { price: data.price, bid: data.bid, ask: data.ask, error: data.error });
+      // #endregion
+
       // Verificar se a resposta contém erro
       if (data.error) {
         throw new Error(data.error);
@@ -69,6 +86,10 @@ export function connectUsdBrlTicker(
       
       const price = parseFloat(data.price);
       const fetchLatency = Date.now() - startTime;
+
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/1dd75be7-d846-4b5f-a704-c8ee3a50d84e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'usdBrlWs.ts:fetchPrice',message:'API data received',data:{price,bid:data.bid,ask:data.ask,latency:fetchLatency,rawData:data},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'C'})}).catch(()=>{});
+      // #endregion
 
       if (!isFinite(price) || price <= 0) {
         throw new Error("Invalid price");
@@ -83,6 +104,10 @@ export function connectUsdBrlTicker(
         latency: data.latency ?? fetchLatency,
       };
 
+      // #region production debug
+      console.log('[DEBUG-PROD] tick created', { last: tick.last, bid: tick.bid, ask: tick.ask });
+      // #endregion
+
       failureCount = 0;
       backoffMs = INITIAL_BACKOFF_MS;
       lastSuccessTs = tickTs;
@@ -90,6 +115,12 @@ export function connectUsdBrlTicker(
       // Sempre chamar onTick, mesmo que os valores sejam similares, para garantir atualização
       onTick(tick);
     } catch (error) {
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/1dd75be7-d846-4b5f-a704-c8ee3a50d84e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'usdBrlWs.ts:fetchPrice',message:'fetchPrice ERROR',data:{error:String(error),failureCount:failureCount+1},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'D'})}).catch(()=>{});
+      // #endregion
+      // #region production debug
+      console.error('[DEBUG-PROD] fetchPrice ERROR', error);
+      // #endregion
       failureCount++;
       if (failureCount >= 3) {
         onStatus("reconnecting");
