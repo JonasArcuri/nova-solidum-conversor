@@ -65,6 +65,9 @@ export function useUsdtBrl(spreadBps?: number): UseUsdtBrlReturn {
     // #region agent log
     fetch('http://127.0.0.1:7242/ingest/1dd75be7-d846-4b5f-a704-c8ee3a50d84e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useUsdtBrl.ts:emitPrice',message:'emitPrice called',data:{tickLast:tick.last,tickBid:tick.bid,tickAsk:tick.ask,novaSolidumBasePrice,spread,isValid:isFinite(spread)&&spread>0},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'E'})}).catch(()=>{});
     // #endregion
+    // #region production debug
+    console.log('[DEBUG-PROD] emitPrice called', { tickBid: tick.bid, tickAsk: tick.ask, novaSolidumBasePrice, spread, isValid: isFinite(spread) && spread > 0 });
+    // #endregion
 
     if (isFinite(spread) && spread > 0 && isFinite(novaSolidumBasePrice) && novaSolidumBasePrice > 0) {
       // SEMPRE atualizar todos os valores e o updateKey para forçar re-render
@@ -77,6 +80,10 @@ export function useUsdtBrl(spreadBps?: number): UseUsdtBrlReturn {
       setLastUpdateTs(ts);
       setLatency(tick.latency ?? null);
       setUpdateKey(ts); // Usar timestamp como chave de atualização - sempre muda
+
+      // #region production debug
+      console.log('[DEBUG-PROD] State updated', { basePrice: novaSolidumBasePrice, bid: tick.bid, ask: tick.ask, updateKey: ts });
+      // #endregion
 
       lastEmittedPriceRef.current = tick.last;
       lastDataTsRef.current = ts;
