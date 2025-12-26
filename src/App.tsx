@@ -145,9 +145,14 @@ function App() {
                 {lastUpdateTs !== null && (
                   <div className="detail-row">
                     <span className="detail-label">Última atualização:</span>
-                    <span className="detail-value">{formatTimestamp(lastUpdateTs)}</span>
+                    <span className="detail-value" key={`ts-${updateKey}`}>{formatTimestamp(lastUpdateTs)}</span>
                   </div>
                 )}
+                {/* Debug: mostrar updateKey para verificar re-renders */}
+                <div className="detail-row" style={{ fontSize: '10px', opacity: 0.5 }}>
+                  <span className="detail-label">Debug tick:</span>
+                  <span className="detail-value">{updateKey}</span>
+                </div>
               </div>
             )}
 
