@@ -141,6 +141,9 @@ export function connectUsdtBrlTicker(
       onStatus("connecting");
       
       const endpoint = getNextEndpoint();
+      // #region production debug
+      console.log('[DEBUG-PROD] WebSocket connecting to:', endpoint);
+      // #endregion
       ws = new WebSocket(endpoint);
       
       // Timeout de conexão
@@ -156,6 +159,9 @@ export function connectUsdtBrlTicker(
       }, CONNECTION_TIMEOUT_MS);
 
       ws.onopen = () => {
+        // #region production debug
+        console.log('[DEBUG-PROD] WebSocket CONNECTED!');
+        // #endregion
         if (connectionTimeoutId) {
           clearTimeout(connectionTimeoutId);
           connectionTimeoutId = null;
@@ -197,6 +203,9 @@ export function connectUsdtBrlTicker(
               isFinite(tick.ask) &&
               tick.last > 0
             ) {
+              // #region production debug
+              console.log('[DEBUG-PROD] WebSocket tick:', { last: tick.last, bid: tick.bid, ask: tick.ask });
+              // #endregion
               onTick(tick);
             }
           }
@@ -206,6 +215,9 @@ export function connectUsdtBrlTicker(
       };
 
       ws.onerror = (event) => {
+        // #region production debug
+        console.error('[DEBUG-PROD] WebSocket ERROR:', event);
+        // #endregion
         // Erro silencioso - tratado no onclose
         // Prevenir que o erro apareça no console do navegador
         if (event && typeof event.preventDefault === 'function') {
@@ -214,6 +226,9 @@ export function connectUsdtBrlTicker(
       };
 
       ws.onclose = () => {
+        // #region production debug
+        console.log('[DEBUG-PROD] WebSocket CLOSED');
+        // #endregion
         clearAllTimers();
         
         // Limpar referência apenas se o WebSocket foi realmente fechado
