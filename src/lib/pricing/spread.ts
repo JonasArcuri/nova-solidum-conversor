@@ -7,10 +7,11 @@ export const MIN_SPREAD_POINTS = 0.0025; // Spread mínimo absoluto em pontos
 
 /**
  * Aplica spread (markup) a um preço base
- * Garante que o spread mínimo seja sempre 0,0025 pontos
+ * Se spread for 0%, retorna o preço base sem modificação
+ * Se spread > 0%, garante que o spread mínimo seja sempre 0,0025 pontos
  * @param base - Preço base (deve ser > 0)
  * @param spreadBps - Spread em basis points (padrão: 85 = 0.85%)
- * @returns Preço com spread aplicado, garantindo mínimo de 0,0025 pontos
+ * @returns Preço com spread aplicado, ou preço base se spread for 0%
  * @throws Se base <= 0, retorna NaN
  */
 export function applySpread(base: number, spreadBps: number = SPREAD_BPS_DEFAULT): number {
@@ -22,10 +23,15 @@ export function applySpread(base: number, spreadBps: number = SPREAD_BPS_DEFAULT
     return NaN;
   }
 
+  // Se spread for 0%, retornar preço base sem modificação
+  if (spreadBps === 0) {
+    return base;
+  }
+
   // Calcular spread percentual
   const priceWithPercentSpread = base * (1 + spreadBps / 10000);
   
-  // Garantir spread mínimo de 0,0025 pontos
+  // Garantir spread mínimo de 0,0025 pontos (apenas se spread > 0%)
   const priceWithMinSpread = base + MIN_SPREAD_POINTS;
   
   // Retornar o maior valor (garante o mínimo)

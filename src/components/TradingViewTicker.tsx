@@ -1,6 +1,6 @@
 /**
- * Componente Single Ticker Widget do TradingView
- * Usa script do TradingView para carregar o widget
+ * Componente Mini Chart Widget do TradingView
+ * Usa tv-mini-chart widget do TradingView
  */
 
 import { useEffect, useRef, useState } from "react";
@@ -12,12 +12,13 @@ interface TradingViewTickerProps {
 }
 
 export function TradingViewTicker({
-  symbol = "BINANCE:USDTBRL",
+  symbol = "FX_IDC:USDBRL",
   locale = "pt_BR",
   colorTheme = "light",
 }: TradingViewTickerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const scriptRef = useRef<HTMLScriptElement | null>(null);
+  const widgetRef = useRef<HTMLElement | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -25,54 +26,70 @@ export function TradingViewTicker({
 
     setLoadError(null);
 
-    // Limpar script anterior
-    if (scriptRef.current) {
-      const oldScript = document.getElementById("tradingview-single-ticker-script");
-      if (oldScript) {
-        oldScript.remove();
-      }
-      containerRef.current.innerHTML = "";
+    // Limpar widget anterior
+    if (widgetRef.current) {
+      widgetRef.current.remove();
+      widgetRef.current = null;
     }
 
-    // Criar container com ID único
-    const containerId = `tradingview_single_ticker_${Date.now()}`;
-    containerRef.current.id = containerId;
-    containerRef.current.innerHTML = "";
+    // Verificar se script já existe no DOM
+    let existingScript = document.getElementById("tradingview-mini-chart-script") as HTMLScriptElement;
+    
+    if (!existingScript) {
+      // Criar script do TradingView Mini Chart
+      const script = document.createElement("script");
+      script.id = "tradingview-mini-chart-script";
+      script.src = "https://widgets.tradingview-widget.com/w/en/tv-mini-chart.js";
+      script.type = "module";
+      script.async = true;
+      
+      script.onerror = () => {
+        setLoadError("Erro ao carregar o widget do TradingView");
+      };
 
-    // Criar script do TradingView
-    const script = document.createElement("script");
-    script.id = "tradingview-single-ticker-script";
-    script.src = "https://s3.tradingview.com/external-embedding/embed-widget-single-quote.js";
-    script.async = true;
-    script.innerHTML = JSON.stringify({
-      symbol: symbol,
-      locale: locale,
-      colorTheme: colorTheme,
-      isTransparent: false,
-      displayMode: "regular",
-      noTimeframe: false,
-      container_id: containerId,
-    });
+      document.head.appendChild(script);
+      scriptRef.current = script;
+    }
 
-    script.onerror = () => {
-      setLoadError("Erro ao carregar o widget do TradingView");
+    // Criar elemento tv-mini-chart
+    const widget = document.createElement("tv-mini-chart");
+    widget.setAttribute("symbol", symbol);
+    
+    // Aguardar script carregar se necessário
+    const checkAndAppend = () => {
+      if (containerRef.current && widget) {
+        containerRef.current.innerHTML = "";
+        containerRef.current.appendChild(widget);
+        widgetRef.current = widget;
+      }
     };
 
-    containerRef.current.appendChild(script);
-    scriptRef.current = script;
+    if (existingScript && existingScript.readyState === "complete") {
+      checkAndAppend();
+    } else {
+      // Aguardar carregamento do script
+      const timeout = setTimeout(() => {
+        checkAndAppend();
+      }, 100);
+      
+      if (existingScript) {
+        existingScript.onload = () => {
+          clearTimeout(timeout);
+          checkAndAppend();
+        };
+      }
+    }
 
     return () => {
-      if (scriptRef.current) {
-        const scriptElement = document.getElementById("tradingview-single-ticker-script");
-        if (scriptElement) {
-          scriptElement.remove();
-        }
+      if (widgetRef.current) {
+        widgetRef.current.remove();
+        widgetRef.current = null;
       }
       if (containerRef.current) {
         containerRef.current.innerHTML = "";
       }
     };
-  }, [symbol, locale, colorTheme]);
+  }, [symbol]);
 
   if (loadError) {
     return (
