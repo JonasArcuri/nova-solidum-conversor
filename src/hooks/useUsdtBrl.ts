@@ -10,7 +10,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { connectUsdtBrlTicker, type TickerTick, type ConnectionStatus } from "@/lib/marketdata/binanceWs";
-import { applySpread, SPREAD_BPS_DEFAULT, MIN_SPREAD_POINTS } from "@/lib/pricing/spread";
+import { applySpread, SPREAD_BPS_DEFAULT } from "@/lib/pricing/spread";
 
 // ============================================
 // Configuração (fallback desabilitado - WebSocket é fonte única)
@@ -52,12 +52,11 @@ export function useUsdtBrl(spreadBps?: number): UseUsdtBrlReturn {
   const emitPrice = useCallback((tick: TickerTick, ts: number, currentSpread?: number) => {
     const spreadToUse = currentSpread ?? spreadBps ?? SPREAD_BPS_DEFAULT;
     
-    // Preço base do Nova Solidum = Preço TradingView + spread mínimo (0.0025)
-    const novaSolidumBasePrice = tick.last + MIN_SPREAD_POINTS;
+    // Preço base do Nova Solidum = Preço da Binance (sem adicionar spread mínimo antes)
+    const novaSolidumBasePrice = tick.last;
     
-    // SEMPRE recalcular spread baseado no novo preço da API
-    // O spread é recalculado a cada tick, garantindo que atualiza conforme a variação da moeda
-    // Mesmo mudanças pequenas no preço resultam em mudanças proporcionais no spread
+    // Aplicar spread percentual sobre o preço base
+    // O spread mínimo (0.0025) é garantido dentro da função applySpread
     const spread = applySpread(novaSolidumBasePrice, spreadToUse);
 
     if (isFinite(spread) && spread > 0 && isFinite(novaSolidumBasePrice) && novaSolidumBasePrice > 0) {
