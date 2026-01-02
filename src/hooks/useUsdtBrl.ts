@@ -1,15 +1,17 @@
 /**
  * Hook para cotação USD/BRL em tempo real - Alta Performance
  * 
+ * Migrado de USDT/BRL (Binance WebSocket) para USD/BRL (API Fiat)
+ * 
  * Otimizações:
- * 1. Atualização em tempo real (sem throttle)
- * 2. Fallback HTTP ultra-rápido (2s polling)
- * 3. Preemptive fallback durante reconexão
+ * 1. Atualização em tempo real via polling HTTP (2s)
+ * 2. Multi-source com fallback automático
+ * 3. Cálculo de Bid/Ask a partir do preço médio
  * 4. Indicador de latência
  */
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { connectUsdtBrlTicker, type TickerTick, type ConnectionStatus } from "@/lib/marketdata/binanceWs";
+import { connectUsdBrlTicker, type TickerTick, type ConnectionStatus } from "@/lib/marketdata/usdBrlPolling";
 import { applySpread, SPREAD_BPS_DEFAULT } from "@/lib/pricing/spread";
 
 // ============================================
@@ -52,7 +54,7 @@ export function useUsdtBrl(spreadBps?: number): UseUsdtBrlReturn {
   const emitPrice = useCallback((tick: TickerTick, ts: number, currentSpread?: number) => {
     const spreadToUse = currentSpread ?? spreadBps ?? SPREAD_BPS_DEFAULT;
     
-    // Preço base do Nova Solidum = Preço da Binance (sem adicionar spread mínimo antes)
+    // Preço base do Nova Solidum = Preço médio da API de câmbio fiat
     const novaSolidumBasePrice = tick.last;
     
     // Aplicar spread percentual sobre o preço base
@@ -235,7 +237,7 @@ export function useUsdtBrl(spreadBps?: number): UseUsdtBrlReturn {
   useEffect(() => {
     let wsConnection: { close: () => void } | null = null;
 
-    wsConnection = connectUsdtBrlTicker(handleTick, handleStatus);
+    wsConnection = connectUsdBrlTicker(handleTick, handleStatus);
 
     return () => {
       if (wsConnection) {

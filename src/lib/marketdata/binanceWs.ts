@@ -1,6 +1,6 @@
 /**
  * Cliente WebSocket para dados de mercado da Binance
- * Conecta no stream público @ticker para USDBRL
+ * Conecta no stream público @ticker para USDTBRL
  * 
  * Otimizações de Performance:
  * 1. Reconexão instantânea (backoff reduzido)
@@ -25,11 +25,11 @@ type OnStatusCallback = (status: ConnectionStatus) => void;
 
 // ============================================
 // Endpoints da Binance (múltiplos para failover)
-// USD/BRL (Dólar Americano para Real Brasileiro)
+// USDT/BRL (Tether para Real Brasileiro)
 // ============================================
 const WS_ENDPOINTS = [
-  "wss://stream.binance.com:9443/ws/usdbrl@ticker",
-  "wss://stream.binance.com:443/ws/usdbrl@ticker",
+  "wss://stream.binance.com:9443/ws/usdtbrl@ticker",
+  "wss://stream.binance.com:443/ws/usdtbrl@ticker",
 ];
 
 // ============================================
@@ -174,7 +174,7 @@ export function connectUsdtBrlTicker(
         try {
           const data: BinanceTickerResponse = JSON.parse(event.data);
 
-          if (data.e === "24hrTicker" && (data.s === "USDBRL" || data.s === "usdbrl")) {
+          if (data.e === "24hrTicker" && (data.s === "USDTBRL" || data.s === "usdtbrl")) {
             const serverTime = data.E;
             const clientTime = Date.now();
             
