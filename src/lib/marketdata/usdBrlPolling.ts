@@ -71,6 +71,7 @@ export function connectUsdBrlTicker(
   const fetchPrice = async (): Promise<void> => {
     try {
       const startTime = Date.now();
+      
       const response = await fetch("/api/usdbrl", {
         cache: "no-store",
         headers: { "Accept": "application/json" },

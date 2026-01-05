@@ -233,15 +233,33 @@ export function useUsdtBrl(spreadBps?: number): UseUsdtBrlReturn {
     }
   }, [spreadBps]); // Apenas quando spreadBps mudar - emitPrice já cuida de atualizar quando basePrice muda
 
-  // Conectar ao WebSocket
+  // Usar refs para estabilizar callbacks e evitar recriação do polling
+  const handleTickRef = useRef(handleTick);
+  const handleStatusRef = useRef(handleStatus);
+  
   useEffect(() => {
-    let wsConnection: { close: () => void } | null = null;
+    handleTickRef.current = handleTick;
+    handleStatusRef.current = handleStatus;
+  }, [handleTick, handleStatus]);
 
-    wsConnection = connectUsdBrlTicker(handleTick, handleStatus);
+  // Conectar ao polling HTTP (substitui WebSocket)
+  useEffect(() => {
+    let connection: { close: () => void } | null = null;
+
+    // Criar wrappers estáveis que usam as refs atualizadas
+    const stableHandleTick = (tick: TickerTick) => {
+      handleTickRef.current(tick);
+    };
+    
+    const stableHandleStatus = (status: ConnectionStatus) => {
+      handleStatusRef.current(status);
+    };
+
+    connection = connectUsdBrlTicker(stableHandleTick, stableHandleStatus);
 
     return () => {
-      if (wsConnection) {
-        wsConnection.close();
+      if (connection) {
+        connection.close();
       }
       if (fallbackIntervalRef.current) {
         clearInterval(fallbackIntervalRef.current);
@@ -250,7 +268,7 @@ export function useUsdtBrl(spreadBps?: number): UseUsdtBrlReturn {
         clearInterval(preemptiveCheckIntervalRef.current);
       }
     };
-  }, [handleTick, handleStatus]);
+  }, []); // Sem dependências - usa refs para valores atualizados
 
   return {
     basePrice,
