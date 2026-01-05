@@ -15,6 +15,7 @@ Aplicação React para exibição de cotação USDT/BRL em tempo real usando Web
   - Múltiplos timeframes (1H, 24H, 7D, 30D, 90D, 1Y, MAX)
 - **Reconexão automática**: Backoff exponencial em caso de falha
 - **Fallback HTTP**: Endpoint opcional para quando WebSocket falha
+- Teste
 
 ## Estrutura do Projeto
 
