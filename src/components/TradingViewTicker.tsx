@@ -1,6 +1,6 @@
 /**
- * Componente Mini Chart Widget do TradingView
- * Usa tv-mini-chart widget do TradingView
+ * Componente Single Quote Widget do TradingView
+ * Usa embed-widget-single-quote.js do TradingView
  */
 
 import { useEffect, useRef, useState } from "react";
@@ -13,10 +13,11 @@ interface TradingViewTickerProps {
 
 export function TradingViewTicker({
   symbol = "FX_IDC:USDBRL",
+  locale = "pt_BR",
+  colorTheme = "light",
 }: TradingViewTickerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const scriptRef = useRef<HTMLScriptElement | null>(null);
-  const widgetRef = useRef<HTMLElement | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -24,79 +25,64 @@ export function TradingViewTicker({
 
     setLoadError(null);
 
-    // Limpar widget anterior
-    if (widgetRef.current) {
-      widgetRef.current.remove();
-      widgetRef.current = null;
-    }
-
-    // Verificar se script já existe no DOM
-    let existingScript = document.getElementById("tradingview-mini-chart-script") as HTMLScriptElement;
-    
-    if (!existingScript) {
-      // Criar script do TradingView Mini Chart
-      const script = document.createElement("script");
-      script.id = "tradingview-mini-chart-script";
-      script.src = "https://widgets.tradingview-widget.com/w/en/tv-mini-chart.js";
-      script.type = "module";
-      script.async = true;
-      
-      script.onerror = () => {
-        setLoadError("Erro ao carregar o widget do TradingView");
-      };
-
-      document.head.appendChild(script);
-      scriptRef.current = script;
-    }
-
-    // Criar elemento tv-mini-chart
-    const widget = document.createElement("tv-mini-chart");
-    widget.setAttribute("symbol", symbol);
-    
-    // Aguardar script carregar se necessário
-    const checkAndAppend = () => {
-      if (containerRef.current && widget) {
-        containerRef.current.innerHTML = "";
-        containerRef.current.appendChild(widget);
-        widgetRef.current = widget;
+    // Limpar script anterior
+    if (scriptRef.current) {
+      const oldScript = document.getElementById("tradingview-single-quote-script");
+      if (oldScript) {
+        oldScript.remove();
       }
+      containerRef.current.innerHTML = "";
+    }
+
+    // Criar container com estrutura do widget
+    const widgetContainer = document.createElement("div");
+    widgetContainer.className = "tradingview-widget-container";
+    
+    const widgetDiv = document.createElement("div");
+    widgetDiv.className = "tradingview-widget-container__widget";
+    
+    const copyrightDiv = document.createElement("div");
+    copyrightDiv.className = "tradingview-widget-copyright";
+    copyrightDiv.innerHTML = `<a href="https://www.tradingview.com/symbols/USDBRL/?exchange=FX_IDC" rel="noopener nofollow" target="_blank"><span class="blue-text">USDBRL rate</span></a><span class="trademark"> by TradingView</span>`;
+    
+    widgetContainer.appendChild(widgetDiv);
+    widgetContainer.appendChild(copyrightDiv);
+    
+    containerRef.current.appendChild(widgetContainer);
+
+    // Criar script do TradingView Single Quote
+    const script = document.createElement("script");
+    script.id = "tradingview-single-quote-script";
+    script.src = "https://s3.tradingview.com/external-embedding/embed-widget-single-quote.js";
+    script.async = true;
+    script.type = "text/javascript";
+    script.innerHTML = JSON.stringify({
+      symbol: symbol,
+      colorTheme: colorTheme,
+      isTransparent: false,
+      locale: locale,
+      width: 350,
+    });
+
+    script.onerror = () => {
+      setLoadError("Erro ao carregar o widget do TradingView");
     };
 
-    // Verificar se script já está carregado (verificando se o módulo está disponível)
-    if (existingScript && (window as any).TradingView) {
-      checkAndAppend();
-    } else {
-      // Aguardar carregamento do script
-      const timeout = setTimeout(() => {
-        checkAndAppend();
-      }, 100);
-      
-      if (existingScript) {
-        existingScript.onload = () => {
-          clearTimeout(timeout);
-          checkAndAppend();
-        };
-      } else if (scriptRef.current) {
-        scriptRef.current.onload = () => {
-          clearTimeout(timeout);
-          checkAndAppend();
-        };
-      } else {
-        // Se não há script, apenas anexar o widget
-        checkAndAppend();
-      }
-    }
+    widgetDiv.appendChild(script);
+    scriptRef.current = script;
 
     return () => {
-      if (widgetRef.current) {
-        widgetRef.current.remove();
-        widgetRef.current = null;
+      if (scriptRef.current) {
+        const scriptElement = document.getElementById("tradingview-single-quote-script");
+        if (scriptElement) {
+          scriptElement.remove();
+        }
       }
       if (containerRef.current) {
         containerRef.current.innerHTML = "";
       }
     };
-  }, [symbol]);
+  }, [symbol, locale, colorTheme]);
 
   if (loadError) {
     return (
