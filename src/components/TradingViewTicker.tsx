@@ -13,8 +13,6 @@ interface TradingViewTickerProps {
 
 export function TradingViewTicker({
   symbol = "FX_IDC:USDBRL",
-  locale = "pt_BR",
-  colorTheme = "light",
 }: TradingViewTickerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const scriptRef = useRef<HTMLScriptElement | null>(null);
@@ -64,7 +62,8 @@ export function TradingViewTicker({
       }
     };
 
-    if (existingScript && existingScript.readyState === "complete") {
+    // Verificar se script já está carregado (verificando se o módulo está disponível)
+    if (existingScript && (window as any).TradingView) {
       checkAndAppend();
     } else {
       // Aguardar carregamento do script
@@ -77,6 +76,14 @@ export function TradingViewTicker({
           clearTimeout(timeout);
           checkAndAppend();
         };
+      } else if (scriptRef.current) {
+        scriptRef.current.onload = () => {
+          clearTimeout(timeout);
+          checkAndAppend();
+        };
+      } else {
+        // Se não há script, apenas anexar o widget
+        checkAndAppend();
       }
     }
 
