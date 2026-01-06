@@ -135,7 +135,7 @@ export function connectUsdBrlTicker(
       };
 
       // Evento: erro na conexão
-      eventSource.onerror = (error) => {
+      eventSource.onerror = () => {
         // Não logar erro se for apenas reconexão automática (readyState CONNECTING)
         if (eventSource?.readyState === EventSource.CONNECTING) {
           // Reconectando automaticamente, não é um erro crítico

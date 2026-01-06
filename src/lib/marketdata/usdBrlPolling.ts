@@ -90,7 +90,6 @@ export function connectUsdBrlTicker(
       // SEMPRE calcular o preço médio a partir de bid/ask para garantir precisão
       // Não confiar apenas no data.price que pode estar incorreto ou ser o bid
       let midPrice: number;
-      let calculatedFrom: string;
       
       if (data.bid && data.ask && isFinite(parseFloat(data.bid)) && isFinite(parseFloat(data.ask))) {
         // FORÇAR cálculo do preço médio a partir de bid/ask (fonte mais confiável)
@@ -98,11 +97,9 @@ export function connectUsdBrlTicker(
         const bid = parseFloat(data.bid);
         const ask = parseFloat(data.ask);
         midPrice = (bid + ask) / 2;
-        calculatedFrom = 'bid+ask/2 (FORCED)';
       } else if (data.price && isFinite(parseFloat(data.price))) {
         // Fallback: usar price se bid/ask não estiverem disponíveis
         midPrice = parseFloat(data.price);
-        calculatedFrom = 'API price (fallback)';
       } else {
         throw new Error("No valid price data");
       }
