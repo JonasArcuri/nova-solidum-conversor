@@ -1,23 +1,39 @@
 /**
- * API de Cotação USD/BRL - Alta Performance
+ * API de Cotação USD/BRL - Banco Central do Brasil (PTAX)
  * 
- * Fallback HTTP para quando WebSocket falha
+ * Fonte principal: API PTAX do Banco Central do Brasil (cotação oficial)
+ * Fallback: AwesomeAPI (caso BCB não esteja disponível)
  * 
  * Otimizações:
  * 1. Edge runtime para menor latência
- * 2. Cache curto para reduzir chamadas
- * 3. Multi-source para máxima disponibilidade
+ * 2. Cache desabilitado para atualizações em tempo real
+ * 3. Multi-source com fallback automático
  * 4. Headers otimizados
+ * 
+ * Nota: A API PTAX do BCB fornece cotações oficiais, mas geralmente
+ * é atualizada apenas em dias úteis. Em caso de indisponibilidade,
+ * usa-se o fallback AwesomeAPI para continuidade do serviço.
  */
 
 export const runtime = "edge";
 
 // ============================================
-// URLs de API (múltiplas fontes)
+// URLs de API - Banco Central do Brasil (PTAX)
 // ============================================
+// API PTAX do Banco Central - Cotação oficial USD/BRL
+// Formato: MM-DD-YYYY (mês-dia-ano)
+function getBcbPtaxUrl() {
+  const today = new Date();
+  const month = String(today.getMonth() + 1).padStart(2, '0');
+  const day = String(today.getDate()).padStart(2, '0');
+  const year = today.getFullYear();
+  const dateStr = `${month}-${day}-${year}`;
+  
+  return `https://olinda.bcb.gov.br/olinda/servico/PTAX/versao/v1/odata/CotacaoDolarDia(dataCotacao=@dataCotacao)?@dataCotacao='${dateStr}'&$format=json`;
+}
+
+// Fallback: AwesomeAPI (caso BCB não esteja disponível)
 const AWESOMEAPI_URL = "https://economia.awesomeapi.com.br/json/last/USD-BRL";
-const EXCHANGERATE_API_URL = "https://api.exchangerate-api.com/v4/latest/USD";
-const EXCHANGERATE_BACKUP_URL = "https://open.er-api.com/v6/latest/USD";
 
 // ============================================
 // Cache desabilitado para atualizações em tempo real
@@ -101,7 +117,73 @@ async function fetchWithTimeout(url, timeoutMs = 2000) {
 }
 
 // ============================================
-// Fonte 1: AwesomeAPI (mais rápido, bid/ask preciso)
+// Fonte 1: Banco Central do Brasil (PTAX) - Fonte oficial
+// ============================================
+async function fetchFromBancoCentral() {
+  try {
+    // Tentar data de hoje primeiro
+    let url = getBcbPtaxUrl();
+    let response = await fetchWithTimeout(url, 3000);
+    
+    if (!response.ok) {
+      throw new Error(`BCB API error: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    
+    // Se não houver dados para hoje, tentar dia anterior (útil)
+    if (!data.value || data.value.length === 0) {
+      const yesterday = new Date();
+      yesterday.setDate(yesterday.getDate() - 1);
+      const month = String(yesterday.getMonth() + 1).padStart(2, '0');
+      const day = String(yesterday.getDate()).padStart(2, '0');
+      const year = yesterday.getFullYear();
+      const dateStr = `${month}-${day}-${year}`;
+      
+      url = `https://olinda.bcb.gov.br/olinda/servico/PTAX/versao/v1/odata/CotacaoDolarDia(dataCotacao=@dataCotacao)?@dataCotacao='${dateStr}'&$format=json`;
+      response = await fetchWithTimeout(url, 3000);
+      
+      if (!response.ok) {
+        throw new Error(`BCB API error: ${response.status}`);
+      }
+      
+      const dataYesterday = await response.json();
+      if (!dataYesterday.value || dataYesterday.value.length === 0) {
+        throw new Error("No BCB data available");
+      }
+      
+      // Usar dados do dia anterior
+      const cotacao = dataYesterday.value[0];
+      const cotacaoCompra = parseFloat(cotacao.cotacaoCompra);
+      const cotacaoVenda = parseFloat(cotacao.cotacaoVenda);
+      
+      if (!isFinite(cotacaoCompra) || !isFinite(cotacaoVenda) || cotacaoCompra <= 0 || cotacaoVenda <= 0) {
+        throw new Error("Invalid BCB price data");
+      }
+      
+      const price = (cotacaoCompra + cotacaoVenda) / 2;
+      return { price, bid: cotacaoCompra, ask: cotacaoVenda };
+    }
+    
+    // Usar dados de hoje
+    const cotacao = data.value[0];
+    const cotacaoCompra = parseFloat(cotacao.cotacaoCompra);
+    const cotacaoVenda = parseFloat(cotacao.cotacaoVenda);
+    
+    if (!isFinite(cotacaoCompra) || !isFinite(cotacaoVenda) || cotacaoCompra <= 0 || cotacaoVenda <= 0) {
+      throw new Error("Invalid BCB price data");
+    }
+    
+    const price = (cotacaoCompra + cotacaoVenda) / 2;
+    return { price, bid: cotacaoCompra, ask: cotacaoVenda };
+    
+  } catch (apiError) {
+    throw apiError;
+  }
+}
+
+// ============================================
+// Fonte 2: AwesomeAPI (fallback caso BCB não esteja disponível)
 // ============================================
 async function fetchFromAwesomeAPI() {
   try {
@@ -136,71 +218,34 @@ async function fetchFromAwesomeAPI() {
 }
 
 // ============================================
-// Fonte 2: ExchangeRate-API (backup)
-// ============================================
-async function fetchFromExchangeRate() {
-  const response = await fetchWithTimeout(EXCHANGERATE_API_URL, 2000);
-  
-  if (!response.ok) {
-    throw new Error(`ExchangeRate API error: ${response.status}`);
-  }
-  
-  const data = await response.json();
-  const brlRate = data.rates?.BRL;
-  
-  if (!brlRate || !isFinite(brlRate) || brlRate <= 0) {
-    throw new Error("Invalid BRL rate");
-  }
-  
-  const price = parseFloat(brlRate);
-  // Simular bid/ask com pequena variação
-  const spread = 0.0001;
-  const bid = price - spread;
-  const ask = price + spread;
-  
-  return { price, bid, ask };
-}
-
-// ============================================
-// Fonte 3: ExchangeRate-API backup
-// ============================================
-async function fetchFromExchangeRateBackup() {
-  const response = await fetchWithTimeout(EXCHANGERATE_BACKUP_URL, 3000);
-  
-  if (!response.ok) {
-    throw new Error(`ExchangeRate backup error: ${response.status}`);
-  }
-  
-  const data = await response.json();
-  const brlRate = data.rates?.BRL;
-  
-  if (!brlRate || !isFinite(brlRate) || brlRate <= 0) {
-    throw new Error("Invalid backup BRL rate");
-  }
-  
-  const price = parseFloat(brlRate);
-  const spread = 0.0001;
-  const bid = price - spread;
-  const ask = price + spread;
-  
-  return { price, bid, ask };
-}
-
-// ============================================
-// Multi-source com racing
+// Multi-source com racing - Banco Central primeiro, depois fallback
 // ============================================
 async function fetchPriceWithRacing() {
+  // #region agent log
+  fetch('http://127.0.0.1:7242/ingest/1dd75be7-d846-4b5f-a704-c8ee3a50d84e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'api/usdbrl.js:223',message:'fetchPriceWithRacing entry',data:{sourcesCount:2},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+  // #endregion
+  
   const sources = [
-    () => fetchFromAwesomeAPI(),
-    () => fetchFromExchangeRate(),
-    () => fetchFromExchangeRateBackup(),
+    () => fetchFromBancoCentral(), // Prioridade: Banco Central (fonte oficial)
+    () => fetchFromAwesomeAPI(),   // Fallback: AwesomeAPI
   ];
+  
+  // #region agent log
+  fetch('http://127.0.0.1:7242/ingest/1dd75be7-d846-4b5f-a704-c8ee3a50d84e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'api/usdbrl.js:230',message:'sources array created',data:{hasBancoCentral:typeof fetchFromBancoCentral === 'function',hasAwesomeAPI:typeof fetchFromAwesomeAPI === 'function'},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+  // #endregion
   
   // Tentar todas as fontes em paralelo, usar a primeira que responder com sucesso
   const results = await Promise.allSettled(sources.map(source => source()));
   
+  // #region agent log
+  fetch('http://127.0.0.1:7242/ingest/1dd75be7-d846-4b5f-a704-c8ee3a50d84e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'api/usdbrl.js:235',message:'Promise.allSettled results',data:{resultsCount:results.length,fulfilledCount:results.filter(r=>r.status==='fulfilled').length,rejectedCount:results.filter(r=>r.status==='rejected').length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+  // #endregion
+  
   for (const result of results) {
     if (result.status === 'fulfilled') {
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/1dd75be7-d846-4b5f-a704-c8ee3a50d84e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'api/usdbrl.js:240',message:'returning fulfilled result',data:{hasPrice:!!result.value?.price,hasBid:!!result.value?.bid,hasAsk:!!result.value?.ask},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+      // #endregion
       return result.value;
     }
   }
@@ -208,6 +253,9 @@ async function fetchPriceWithRacing() {
   // Se todas falharam, lançar o último erro
   const lastError = results[results.length - 1];
   if (lastError.status === 'rejected') {
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/1dd75be7-d846-4b5f-a704-c8ee3a50d84e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'api/usdbrl.js:248',message:'all sources failed',data:{errorMessage:lastError.reason?.message,errorName:lastError.reason?.name},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+    // #endregion
     throw lastError.reason || new Error("All API sources failed");
   }
   
@@ -226,6 +274,10 @@ export async function OPTIONS(req) {
 export async function GET(req) {
   const startTime = Date.now();
   
+  // #region agent log
+  fetch('http://127.0.0.1:7242/ingest/1dd75be7-d846-4b5f-a704-c8ee3a50d84e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'api/usdbrl.js:256',message:'GET handler entry',data:{method:req.method},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+  // #endregion
+  
   try {
     // Edge Runtime: req é sempre um Request object
     const method = req.method;
@@ -242,8 +294,16 @@ export async function GET(req) {
     // Sempre buscar valores frescos (cache desabilitado para tempo real)
     const now = Date.now();
     
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/1dd75be7-d846-4b5f-a704-c8ee3a50d84e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'api/usdbrl.js:275',message:'before fetchPriceWithRacing',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+    // #endregion
+    
     // Buscar preço com racing
     const { price, bid, ask } = await fetchPriceWithRacing();
+    
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/1dd75be7-d846-4b5f-a704-c8ee3a50d84e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'api/usdbrl.js:279',message:'after fetchPriceWithRacing',data:{price,bid,ask},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+    // #endregion
 
     // Criar resposta com timestamp sempre atualizado
     const responseData = {
@@ -264,6 +324,10 @@ export async function GET(req) {
     return new Response(JSON.stringify(responseData), { status: 200, headers });
     
   } catch (error) {
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/1dd75be7-d846-4b5f-a704-c8ee3a50d84e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'api/usdbrl.js:296',message:'error caught',data:{errorMessage:error?.message,errorName:error?.name,errorStack:error?.stack?.substring(0,200)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+    // #endregion
+    
     console.error("[usdbrl API] Erro:", sanitizeErrorForLog(error));
     
     try {
