@@ -88,17 +88,21 @@ export function connectUsdBrlTicker(
       }
       
       // SEMPRE calcular o preço médio a partir de bid/ask para garantir precisão
-      // Não confiar apenas no data.price que pode estar incorreto
+      // Não confiar apenas no data.price que pode estar incorreto ou ser o bid
       let midPrice: number;
+      let calculatedFrom: string;
       
       if (data.bid && data.ask && isFinite(parseFloat(data.bid)) && isFinite(parseFloat(data.ask))) {
-        // Calcular preço médio a partir de bid/ask (fonte mais confiável)
+        // FORÇAR cálculo do preço médio a partir de bid/ask (fonte mais confiável)
+        // IGNORAR data.price mesmo se existir, pois pode estar incorreto
         const bid = parseFloat(data.bid);
         const ask = parseFloat(data.ask);
         midPrice = (bid + ask) / 2;
+        calculatedFrom = 'bid+ask/2 (FORCED)';
       } else if (data.price && isFinite(parseFloat(data.price))) {
         // Fallback: usar price se bid/ask não estiverem disponíveis
         midPrice = parseFloat(data.price);
+        calculatedFrom = 'API price (fallback)';
       } else {
         throw new Error("No valid price data");
       }
@@ -137,8 +141,8 @@ export function connectUsdBrlTicker(
       // Debug temporário para produção
       if (typeof window !== 'undefined' && !window.location.hostname.includes('localhost')) {
         console.log('[PROD-DEBUG] API response:', { price: data.price, bid: data.bid, ask: data.ask });
+        console.log('[PROD-DEBUG] Mid price calculation:', { midPrice, calculatedFrom, bid: data.bid, ask: data.ask });
         console.log('[PROD-DEBUG] Tick created:', { last: tick.last, bid: tick.bid, ask: tick.ask, ts: tick.ts });
-        console.log('[PROD-DEBUG] Mid price calculation:', { midPrice, calculatedFrom: data.price ? 'API price' : 'bid+ask/2' });
       }
 
       failureCount = 0;
