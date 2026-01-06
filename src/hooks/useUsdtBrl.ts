@@ -62,6 +62,17 @@ export function useUsdtBrl(spreadBps?: number): UseUsdtBrlReturn {
     const spread = applySpread(novaSolidumBasePrice, spreadToUse);
 
     if (isFinite(spread) && spread > 0 && isFinite(novaSolidumBasePrice) && novaSolidumBasePrice > 0) {
+      // Debug temporário para produção
+      if (typeof window !== 'undefined' && !window.location.hostname.includes('localhost')) {
+        console.log('[PROD-DEBUG] emitPrice updating state:', { 
+          basePrice: novaSolidumBasePrice, 
+          bid: tick.bid, 
+          ask: tick.ask, 
+          priceWithSpread: spread,
+          updateKey: ts 
+        });
+      }
+
       setBasePrice(novaSolidumBasePrice);
       setPriceWithSpread(spread);
       setBid(tick.bid);
