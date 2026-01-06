@@ -138,13 +138,6 @@ export function connectUsdBrlTicker(
         latency: data.latency ?? fetchLatency,
       };
 
-      // Debug temporário para produção
-      if (typeof window !== 'undefined' && !window.location.hostname.includes('localhost')) {
-        console.log('[PROD-DEBUG] API response:', { price: data.price, bid: data.bid, ask: data.ask });
-        console.log('[PROD-DEBUG] Mid price calculation:', { midPrice, calculatedFrom, bid: data.bid, ask: data.ask });
-        console.log('[PROD-DEBUG] Tick created:', { last: tick.last, bid: tick.bid, ask: tick.ask, ts: tick.ts });
-      }
-
       failureCount = 0;
       backoffMs = INITIAL_BACKOFF_MS;
       lastSuccessTs = tickTs;

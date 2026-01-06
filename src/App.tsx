@@ -129,13 +129,13 @@ function App() {
                 {bid !== null && (
                   <div className="detail-row">
                     <span className="detail-label">Bid:</span>
-                    <span className="detail-value" key={`bid-${updateKey}`}>{formatPrice(bid)}</span>
+                    <span className="detail-value" key={`bid-${updateKey}-${lastUpdateTs}`}>{formatPrice(bid)}</span>
                   </div>
                 )}
                 {ask !== null && (
                   <div className="detail-row">
                     <span className="detail-label">Ask:</span>
-                    <span className="detail-value" key={`ask-${updateKey}`}>{formatPrice(ask)}</span>
+                    <span className="detail-value" key={`ask-${updateKey}-${lastUpdateTs}`}>{formatPrice(ask)}</span>
                   </div>
                 )}
                 <div className="detail-row">

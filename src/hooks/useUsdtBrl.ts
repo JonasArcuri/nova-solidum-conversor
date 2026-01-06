@@ -11,7 +11,7 @@
  */
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { connectUsdBrlTicker, type TickerTick, type ConnectionStatus } from "@/lib/marketdata/usdBrlPolling";
+import { connectUsdBrlTicker, type TickerTick, type ConnectionStatus } from "@/lib/marketdata/usdBrlSse";
 import { applySpread, SPREAD_BPS_DEFAULT } from "@/lib/pricing/spread";
 
 // ============================================
@@ -62,23 +62,15 @@ export function useUsdtBrl(spreadBps?: number): UseUsdtBrlReturn {
     const spread = applySpread(novaSolidumBasePrice, spreadToUse);
 
     if (isFinite(spread) && spread > 0 && isFinite(novaSolidumBasePrice) && novaSolidumBasePrice > 0) {
-      // Debug temporário para produção
-      if (typeof window !== 'undefined' && !window.location.hostname.includes('localhost')) {
-        console.log('[PROD-DEBUG] emitPrice updating state:', { 
-          basePrice: novaSolidumBasePrice, 
-          bid: tick.bid, 
-          ask: tick.ask, 
-          priceWithSpread: spread,
-          updateKey: ts 
-        });
-      }
-
+      // SEMPRE atualizar os valores, mesmo que sejam similares
+      // Isso garante que a UI seja atualizada a cada 30s via SSE
       setBasePrice(novaSolidumBasePrice);
       setPriceWithSpread(spread);
       setBid(tick.bid);
       setAsk(tick.ask);
       setLastUpdateTs(ts);
       setLatency(tick.latency ?? null);
+      // Usar timestamp único para forçar re-render mesmo com valores similares
       setUpdateKey(ts);
 
       lastEmittedPriceRef.current = tick.last;
@@ -105,6 +97,7 @@ export function useUsdtBrl(spreadBps?: number): UseUsdtBrlReturn {
     // SEMPRE chamar emitPrice para garantir que o spread seja recalculado
     // mesmo que o preço seja muito similar, o spread deve ser recalculado
     // Isso garante que o valor com spread atualiza conforme a variação da moeda
+    // E que Bid/Ask sejam atualizados a cada 30s via SSE
     emitPrice(tick, dataTs, currentSpreadBps);
   }, [emitPrice, spreadBps]);
 

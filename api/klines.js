@@ -242,15 +242,16 @@ async function fetchKlinesWithRacing(interval, limit) {
 // ============================================
 // Handler Principal
 // ============================================
+export async function OPTIONS(req) {
+  const origin = req.headers.get("origin") || req.headers.get("referer") || "";
+  const headers = getSecureHeaders(origin);
+  return new Response(null, { status: 204, headers });
+}
+
 export async function GET(req) {
   const startTime = Date.now();
   const origin = req.headers.get("origin") || req.headers.get("referer") || "";
   const headers = getSecureHeaders(origin);
-
-  // CORS preflight
-  if (req.method === "OPTIONS") {
-    return new Response(null, { status: 204, headers });
-  }
 
   try {
     const { searchParams } = new URL(req.url);

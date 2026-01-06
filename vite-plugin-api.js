@@ -14,20 +14,29 @@ export function vitePluginApi() {
     configureServer(server) {
       server.middlewares.use(async (req, res, next) => {
         if (req.url?.startsWith('/api/')) {
+          // Ignorar rotas SSE e outras rotas que não são arquivos na pasta api/
+          // Essas rotas serão tratadas pelo proxy para o servidor Express
+          const apiPath = req.url.replace('/api/', '').split('?')[0]
+          if (apiPath.includes('/') || apiPath.includes('stream')) {
+            // É uma rota (ex: /api/usdbrl/stream), não um arquivo
+            // Deixar o proxy do Vite tratar
+            next()
+            return
+          }
+          
           try {
-            const apiName = req.url.replace('/api/', '').split('?')[0]
-            const apiPath = resolve(__dirname, `api/${apiName}.js`)
+            const apiName = apiPath
+            const apiFilePath = resolve(__dirname, `api/${apiName}.js`)
             
             // Verificar se o arquivo existe
-            if (!existsSync(apiPath)) {
-              console.error(`[Vite API Plugin] Arquivo não encontrado: ${apiPath}`)
-              res.writeHead(404, { 'Content-Type': 'application/json' })
-              res.end(JSON.stringify({ error: 'API endpoint not found' }))
+            if (!existsSync(apiFilePath)) {
+              // Arquivo não existe, deixar o proxy tratar (pode ser rota do Express)
+              next()
               return
             }
             
             // Importar dinamicamente o módulo da API
-            const apiUrl = `file://${apiPath}?t=${Date.now()}`
+            const apiUrl = `file://${apiFilePath}?t=${Date.now()}`
             const apiModule = await import(apiUrl)
             
             // Suportar named exports (GET, POST, OPTIONS, etc.) - formato Vercel Edge Runtime

@@ -221,31 +221,16 @@ async function fetchFromAwesomeAPI() {
 // Multi-source com racing - Banco Central primeiro, depois fallback
 // ============================================
 async function fetchPriceWithRacing() {
-  // #region agent log
-  fetch('http://127.0.0.1:7242/ingest/1dd75be7-d846-4b5f-a704-c8ee3a50d84e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'api/usdbrl.js:223',message:'fetchPriceWithRacing entry',data:{sourcesCount:2},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-  // #endregion
-  
   const sources = [
     () => fetchFromBancoCentral(), // Prioridade: Banco Central (fonte oficial)
     () => fetchFromAwesomeAPI(),   // Fallback: AwesomeAPI
   ];
   
-  // #region agent log
-  fetch('http://127.0.0.1:7242/ingest/1dd75be7-d846-4b5f-a704-c8ee3a50d84e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'api/usdbrl.js:230',message:'sources array created',data:{hasBancoCentral:typeof fetchFromBancoCentral === 'function',hasAwesomeAPI:typeof fetchFromAwesomeAPI === 'function'},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-  // #endregion
-  
   // Tentar todas as fontes em paralelo, usar a primeira que responder com sucesso
   const results = await Promise.allSettled(sources.map(source => source()));
   
-  // #region agent log
-  fetch('http://127.0.0.1:7242/ingest/1dd75be7-d846-4b5f-a704-c8ee3a50d84e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'api/usdbrl.js:235',message:'Promise.allSettled results',data:{resultsCount:results.length,fulfilledCount:results.filter(r=>r.status==='fulfilled').length,rejectedCount:results.filter(r=>r.status==='rejected').length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-  // #endregion
-  
   for (const result of results) {
     if (result.status === 'fulfilled') {
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/1dd75be7-d846-4b5f-a704-c8ee3a50d84e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'api/usdbrl.js:240',message:'returning fulfilled result',data:{hasPrice:!!result.value?.price,hasBid:!!result.value?.bid,hasAsk:!!result.value?.ask},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-      // #endregion
       return result.value;
     }
   }
@@ -253,9 +238,6 @@ async function fetchPriceWithRacing() {
   // Se todas falharam, lançar o último erro
   const lastError = results[results.length - 1];
   if (lastError.status === 'rejected') {
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/1dd75be7-d846-4b5f-a704-c8ee3a50d84e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'api/usdbrl.js:248',message:'all sources failed',data:{errorMessage:lastError.reason?.message,errorName:lastError.reason?.name},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-    // #endregion
     throw lastError.reason || new Error("All API sources failed");
   }
   
@@ -274,10 +256,6 @@ export async function OPTIONS(req) {
 export async function GET(req) {
   const startTime = Date.now();
   
-  // #region agent log
-  fetch('http://127.0.0.1:7242/ingest/1dd75be7-d846-4b5f-a704-c8ee3a50d84e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'api/usdbrl.js:256',message:'GET handler entry',data:{method:req.method},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-  // #endregion
-  
   try {
     // Edge Runtime: req é sempre um Request object
     const method = req.method;
@@ -294,16 +272,8 @@ export async function GET(req) {
     // Sempre buscar valores frescos (cache desabilitado para tempo real)
     const now = Date.now();
     
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/1dd75be7-d846-4b5f-a704-c8ee3a50d84e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'api/usdbrl.js:275',message:'before fetchPriceWithRacing',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-    // #endregion
-    
     // Buscar preço com racing
     const { price, bid, ask } = await fetchPriceWithRacing();
-    
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/1dd75be7-d846-4b5f-a704-c8ee3a50d84e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'api/usdbrl.js:279',message:'after fetchPriceWithRacing',data:{price,bid,ask},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-    // #endregion
 
     // Criar resposta com timestamp sempre atualizado
     const responseData = {
@@ -314,7 +284,7 @@ export async function GET(req) {
       latency: Date.now() - startTime,
     };
 
-    // Salvar no cache (mesmo que TTL seja 0, útil para debug)
+    // Salvar no cache
     priceCache = responseData;
     cacheExpiry = now + CACHE_TTL_MS;
 
@@ -324,10 +294,6 @@ export async function GET(req) {
     return new Response(JSON.stringify(responseData), { status: 200, headers });
     
   } catch (error) {
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/1dd75be7-d846-4b5f-a704-c8ee3a50d84e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'api/usdbrl.js:296',message:'error caught',data:{errorMessage:error?.message,errorName:error?.name,errorStack:error?.stack?.substring(0,200)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
-    // #endregion
-    
     console.error("[usdbrl API] Erro:", sanitizeErrorForLog(error));
     
     try {

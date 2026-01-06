@@ -10,6 +10,16 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
     },
   },
+  server: {
+    proxy: {
+      // Proxy para rotas SSE e outras rotas do Express
+      '/api': {
+        target: 'http://localhost:3000',
+        changeOrigin: true,
+        ws: true, // Suportar WebSocket para SSE
+      },
+    },
+  },
   test: {
     globals: true,
     environment: 'jsdom',
