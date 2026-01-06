@@ -2,7 +2,7 @@
  * Módulo para aplicação de spread (markup) em preços
  */
 
-export const SPREAD_BPS_DEFAULT = 85; // 0.85% = 85 basis points
+export const SPREAD_BPS_DEFAULT = 100; // 1.00% = 100 basis points
 export const MIN_SPREAD_POINTS = 0.0025; // Spread mínimo absoluto em pontos
 
 /**
@@ -10,7 +10,7 @@ export const MIN_SPREAD_POINTS = 0.0025; // Spread mínimo absoluto em pontos
  * Se spread for 0%, retorna o preço base sem modificação
  * Se spread > 0%, garante que o spread mínimo seja sempre 0,0025 pontos
  * @param base - Preço base (deve ser > 0)
- * @param spreadBps - Spread em basis points (padrão: 85 = 0.85%)
+ * @param spreadBps - Spread em basis points (padrão: 100 = 1.00%)
  * @returns Preço com spread aplicado, ou preço base se spread for 0%
  * @throws Se base <= 0, retorna NaN
  */
