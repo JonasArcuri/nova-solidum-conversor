@@ -1,7 +1,6 @@
 /**
  * Cliente de polling HTTP para dados de mercado USD/BRL
- * Substitui WebSocket da Binance por API de câmbio fiat
- * Simula comportamento de WebSocket usando polling frequente
+ * Atualiza o preço 1 vez por dia (24 horas)
  * 
  * Migração de USDT/BRL (Binance) para USD/BRL (API Fiat)
  */
@@ -23,9 +22,9 @@ type OnStatusCallback = (status: ConnectionStatus) => void;
 // ============================================
 // Configuração
 // ============================================
-const POLL_INTERVAL_MS = 2000; // 2 segundos - atualização frequente para tempo real
-const MAX_BACKOFF_MS = 5000;
-const INITIAL_BACKOFF_MS = 100;
+const POLL_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 horas - atualização 1 vez por dia
+const MAX_BACKOFF_MS = 60000; // 1 minuto para retry em caso de erro
+const INITIAL_BACKOFF_MS = 5000; // 5 segundos para retry inicial
 const SPREAD_BPS_FOR_BID_ASK = 50; // 0.5% spread para calcular Bid/Ask a partir do preço médio
 
 /**
@@ -51,7 +50,6 @@ export function connectUsdBrlTicker(
   let isIntentionallyClosed = false;
   let failureCount = 0;
   let lastSuccessTs = 0;
-  let healthCheckIntervalId: ReturnType<typeof setInterval> | null = null;
 
   const clearAllTimers = () => {
     if (pollIntervalId) {
@@ -61,10 +59,6 @@ export function connectUsdBrlTicker(
     if (reconnectTimeoutId) {
       clearTimeout(reconnectTimeoutId);
       reconnectTimeoutId = null;
-    }
-    if (healthCheckIntervalId) {
-      clearInterval(healthCheckIntervalId);
-      healthCheckIntervalId = null;
     }
   };
 
@@ -174,13 +168,8 @@ export function connectUsdBrlTicker(
 
   startPolling();
 
-  healthCheckIntervalId = setInterval(() => {
-    if (isIntentionallyClosed) return;
-    const timeSinceLastSuccess = Date.now() - lastSuccessTs;
-    if (timeSinceLastSuccess > 10000 && !reconnectTimeoutId) {
-      reconnect();
-    }
-  }, 5000);
+  // Health check desabilitado - com atualização diária, não é necessário verificar tão frequentemente
+  // O próprio intervalo de polling já garante a atualização diária
 
   return {
     close: () => {
