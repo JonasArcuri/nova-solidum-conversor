@@ -15,10 +15,6 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { connectUsdBrlTicker, type TickerTick, type ConnectionStatus } from "@/lib/marketdata/usdBrlPolling";
 import { applySpread, SPREAD_BPS_DEFAULT } from "@/lib/pricing/spread";
 
-// ============================================
-// Configuração - SSE é a única fonte de dados
-// ============================================
-
 export interface UseUsdtBrlReturn {
   basePrice: number | null;
   priceWithSpread: number | null;
@@ -40,12 +36,6 @@ export function useUsdtBrl(spreadBps?: number): UseUsdtBrlReturn {
   const [latency, setLatency] = useState<number | null>(null);
   const [updateKey, setUpdateKey] = useState<number>(0);
 
-  const lastEmittedPriceRef = useRef<number | null>(null);
-  const lastDataTsRef = useRef<number>(Date.now());
-  const lastBasePriceRef = useRef<number | null>(null);
-  const lastBidRef = useRef<number | null>(null);
-  const lastAskRef = useRef<number | null>(null);
-
   const emitPrice = useCallback((tick: TickerTick, ts: number) => {
     // Preço base do Nova Solidum = Preço médio da API de câmbio fiat
     const novaSolidumBasePrice = tick.last;
@@ -60,12 +50,6 @@ export function useUsdtBrl(spreadBps?: number): UseUsdtBrlReturn {
       setLatency(tick.latency ?? null);
       // Usar timestamp único para forçar re-render mesmo com valores similares
       setUpdateKey(ts);
-
-      lastEmittedPriceRef.current = tick.last;
-      lastDataTsRef.current = ts;
-      lastBasePriceRef.current = novaSolidumBasePrice;
-      lastBidRef.current = tick.bid;
-      lastAskRef.current = tick.ask;
     }
   }, []);
 
@@ -79,7 +63,6 @@ export function useUsdtBrl(spreadBps?: number): UseUsdtBrlReturn {
     
     // Sempre atualizar timestamp de dados recebidos (usar timestamp do tick se disponível)
     const dataTs = tick.ts ?? now;
-    lastDataTsRef.current = dataTs;
 
     // SEMPRE chamar emitPrice para garantir que o spread seja recalculado
     // mesmo que o preço seja muito similar, o spread deve ser recalculado

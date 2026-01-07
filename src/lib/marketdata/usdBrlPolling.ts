@@ -23,8 +23,6 @@ type OnStatusCallback = (status: ConnectionStatus) => void;
 // Configuração
 // ============================================
 const POLL_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 horas - atualização 1 vez por dia
-const MAX_BACKOFF_MS = 60000; // 1 minuto para retry em caso de erro
-const INITIAL_BACKOFF_MS = 5000; // 5 segundos para retry inicial
 const SPREAD_BPS_FOR_BID_ASK = 50; // 0.5% spread para calcular Bid/Ask a partir do preço médio
 
 /**
@@ -45,8 +43,6 @@ export function connectUsdBrlTicker(
   onStatus: OnStatusCallback
 ): { close: () => void } {
   let pollIntervalId: ReturnType<typeof setInterval> | null = null;
-  let reconnectTimeoutId: ReturnType<typeof setTimeout> | null = null;
-  let backoffMs = INITIAL_BACKOFF_MS;
   let isIntentionallyClosed = false;
   let failureCount = 0;
 
@@ -54,10 +50,6 @@ export function connectUsdBrlTicker(
     if (pollIntervalId) {
       clearInterval(pollIntervalId);
       pollIntervalId = null;
-    }
-    if (reconnectTimeoutId) {
-      clearTimeout(reconnectTimeoutId);
-      reconnectTimeoutId = null;
     }
   };
 
@@ -129,7 +121,6 @@ export function connectUsdBrlTicker(
       };
 
       failureCount = 0;
-      backoffMs = INITIAL_BACKOFF_MS;
       onStatus("live");
       onTick(tick);
     } catch (error) {
