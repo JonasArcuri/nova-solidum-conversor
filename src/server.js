@@ -1,7 +1,10 @@
 /**
  * Servidor principal da API USD/BRL
- * Arquitetura cache-first com atualização agendada 2x ao dia
+ * Arquitetura cache-first com WebSocket real-time
  */
+
+// Carregar variáveis de ambiente do arquivo .env
+import 'dotenv/config';
 
 import express from 'express';
 import { fileURLToPath } from 'url';

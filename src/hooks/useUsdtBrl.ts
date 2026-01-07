@@ -1,23 +1,23 @@
 /**
- * Hook para cotação USD/BRL em tempo real - Alta Performance
+ * Hook para cotação USD/BRL em tempo real via polling HTTP
  * 
- * Migrado de USDT/BRL (Binance WebSocket) para USD/BRL (API Fiat)
+ * Usa polling HTTP para buscar atualizações da API
+ * Compatível com Vercel (serverless functions)
  * 
  * Otimizações:
- * 1. Atualização em tempo real via polling HTTP (2s)
- * 2. Multi-source com fallback automático
- * 3. Cálculo de Bid/Ask a partir do preço médio
- * 4. Indicador de latência
+ * 1. Polling HTTP a cada 2 segundos
+ * 2. Cálculo de Bid/Ask a partir do preço médio
+ * 3. Indicador de latência
+ * 4. Recalculo automático do spread quando o input mudar
  */
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { connectUsdBrlTicker, type TickerTick, type ConnectionStatus } from "@/lib/marketdata/usdBrlSse";
+import { connectUsdBrlTicker, type TickerTick, type ConnectionStatus } from "@/lib/marketdata/usdBrlPolling";
 import { applySpread, SPREAD_BPS_DEFAULT } from "@/lib/pricing/spread";
 
 // ============================================
-// Configuração (fallback desabilitado - WebSocket é fonte única)
+// Configuração - SSE é a única fonte de dados
 // ============================================
-const FALLBACK_POLL_INTERVAL = 2000; // Mantido para referência futura
 
 export interface UseUsdtBrlReturn {
   basePrice: number | null;
@@ -52,20 +52,13 @@ export function useUsdtBrl(spreadBps?: number): UseUsdtBrlReturn {
   const lastAskRef = useRef<number | null>(null);
 
   const emitPrice = useCallback((tick: TickerTick, ts: number, currentSpread?: number) => {
-    const spreadToUse = currentSpread ?? spreadBps ?? SPREAD_BPS_DEFAULT;
-    
     // Preço base do Nova Solidum = Preço médio da API de câmbio fiat
     const novaSolidumBasePrice = tick.last;
-    
-    // Aplicar spread percentual sobre o preço base
-    // O spread mínimo (0.0025) é garantido dentro da função applySpread
-    const spread = applySpread(novaSolidumBasePrice, spreadToUse);
 
-    if (isFinite(spread) && spread > 0 && isFinite(novaSolidumBasePrice) && novaSolidumBasePrice > 0) {
-      // SEMPRE atualizar os valores, mesmo que sejam similares
-      // Isso garante que a UI seja atualizada a cada 30s via SSE
+    if (isFinite(novaSolidumBasePrice) && novaSolidumBasePrice > 0) {
+      // Atualizar apenas o preço base e dados de mercado
+      // O spread será recalculado pelo useEffect quando basePrice ou spreadBps mudar
       setBasePrice(novaSolidumBasePrice);
-      setPriceWithSpread(spread);
       setBid(tick.bid);
       setAsk(tick.ask);
       setLastUpdateTs(ts);
@@ -79,7 +72,7 @@ export function useUsdtBrl(spreadBps?: number): UseUsdtBrlReturn {
       lastBidRef.current = tick.bid;
       lastAskRef.current = tick.ask;
     }
-  }, [spreadBps]);
+  }, []);
 
   const handleTick = useCallback((tick: TickerTick) => {
     const now = Date.now();
@@ -224,9 +217,8 @@ export function useUsdtBrl(spreadBps?: number): UseUsdtBrlReturn {
   }, []); // Sem dependências - usa refs para valores atualizados
   */
 
-  // Recalcular priceWithSpread APENAS quando spreadBps mudar (não quando basePrice mudar)
-  // O emitPrice já recalcula o spread quando basePrice muda via handleTick
-  // Este useEffect é apenas para quando o usuário altera o spread manualmente
+  // Recalcular priceWithSpread quando spreadBps OU basePrice mudar
+  // Isso garante que quando o usuário alterar o input do spread, o valor seja recalculado imediatamente
   useEffect(() => {
     if (basePrice !== null) {
       const currentSpreadBps = spreadBps ?? SPREAD_BPS_DEFAULT;
@@ -235,7 +227,7 @@ export function useUsdtBrl(spreadBps?: number): UseUsdtBrlReturn {
         setPriceWithSpread(newSpread);
       }
     }
-  }, [spreadBps]); // Apenas quando spreadBps mudar - emitPrice já cuida de atualizar quando basePrice muda
+  }, [spreadBps, basePrice]); // Recalcular quando spreadBps OU basePrice mudar
 
   // Usar refs para estabilizar callbacks e evitar recriação do polling
   const handleTickRef = useRef(handleTick);

@@ -96,7 +96,13 @@ function removeClient(client) {
  * @param {Object} data - Dados para enviar
  */
 function broadcast(data) {
+  // #region agent log
+  fetch('http://127.0.0.1:7242/ingest/1dd75be7-d846-4b5f-a704-c8ee3a50d84e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'sseHub.js:98',message:'broadcast chamado',data:{clientCount:clients.size,data},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'G'})}).catch(()=>{});
+  // #endregion
   if (clients.size === 0) {
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/1dd75be7-d846-4b5f-a704-c8ee3a50d84e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'sseHub.js:100',message:'Nenhum cliente SSE conectado',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'G'})}).catch(()=>{});
+    // #endregion
     return;
   }
 
@@ -106,7 +112,13 @@ function broadcast(data) {
   for (const client of clients) {
     try {
       client.write(message);
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/1dd75be7-d846-4b5f-a704-c8ee3a50d84e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'sseHub.js:108',message:'Mensagem enviada para cliente SSE',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'G'})}).catch(()=>{});
+      // #endregion
     } catch (error) {
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/1dd75be7-d846-4b5f-a704-c8ee3a50d84e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'sseHub.js:110',message:'Erro ao enviar para cliente',data:{error:error.message},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'G'})}).catch(()=>{});
+      // #endregion
       clientsToRemove.push(client);
     }
   }

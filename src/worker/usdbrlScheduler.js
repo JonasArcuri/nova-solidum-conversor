@@ -1,105 +1,112 @@
 /**
- * Worker/Scheduler para atualização de cotação USD/BRL
- * Atualiza EXATAMENTE 2 vezes ao dia: 09:00 e 15:00 (horário de Brasília)
- * Usa API existente (Banco Central / AwesomeAPI)
+ * Worker para atualização de cotação USD/BRL via WebSocket
+ * Usa WebSocket real-time (Twelve Data) ao invés de polling
  */
 
-import cron from 'node-cron';
 import { updateCache, getCache } from '../cache/usdbrlCache.js';
 import { broadcast } from '../sse/sseHub.js';
+import { startWebSocket, close as closeWebSocket } from '../services/twelveDataService.js';
+import { fetchQuotation } from '../services/quotationPollingService.js';
 
-let isRunning = false;
+let stopWebSocket = null;
+let isInitialized = false;
 
 /**
- * Busca cotação da API existente
+ * Handler para atualização de cotação via WebSocket
  */
-async function fetchQuotation() {
-  try {
-    // Importar função diretamente da API para evitar chamada HTTP interna
-    const { GET } = await import('../../api/usdbrl.js');
-    const mockRequest = new Request('http://localhost/api/usdbrl', {
-      method: 'GET',
-      headers: new Headers({
-        'Accept': 'application/json',
-      }),
-    });
+function handleUpdate(data) {
+  // #region agent log
+  fetch('http://127.0.0.1:7242/ingest/1dd75be7-d846-4b5f-a704-c8ee3a50d84e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'usdbrlScheduler.js:17',message:'handleUpdate chamado',data:{data},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'G'})}).catch(()=>{});
+  // #endregion
+  updateCache(data);
+  // #region agent log
+  fetch('http://127.0.0.1:7242/ingest/1dd75be7-d846-4b5f-a704-c8ee3a50d84e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'usdbrlScheduler.js:19',message:'Cache atualizado, fazendo broadcast',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'G'})}).catch(()=>{});
+  // #endregion
+  broadcast(data);
+}
 
-    const response = await GET(mockRequest);
-
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`);
-    }
-
-    const data = await response.json();
-
-    if (data.error) {
-      throw new Error(data.error);
-    }
-
-    // Converter formato da API para formato do cache
-
-    return {
-      bid: data.bid || data.price,
-      ask: data.ask || data.price,
-      spread: (data.ask || data.price) - (data.bid || data.price),
-      timestamp: data.ts ? new Date(data.ts).toISOString() : new Date().toISOString(),
-      source: 'Banco Central / AwesomeAPI',
-    };
-  } catch (error) {
-    throw error;
+/**
+ * Handler para erros do WebSocket
+ */
+function handleError(error) {
+  // Se WebSocket falhar e não houver cache, tentar fallback uma vez
+  if (!getCache()) {
+    fetchQuotation()
+      .then((data) => {
+        handleUpdate(data);
+      })
+      .catch(() => {
+        // Erro silencioso
+      });
   }
 }
 
 /**
- * Executa atualização da cotação
+ * Inicia o worker de WebSocket
  */
-async function updateQuotation() {
-  if (isRunning) {
+function startWorker() {
+  // #region agent log
+  fetch('http://127.0.0.1:7242/ingest/1dd75be7-d846-4b5f-a704-c8ee3a50d84e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'usdbrlScheduler.js:41',message:'startWorker chamado',data:{isInitialized,hasCache:!!getCache()},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+  // #endregion
+  if (isInitialized) {
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/1dd75be7-d846-4b5f-a704-c8ee3a50d84e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'usdbrlScheduler.js:43',message:'Worker já inicializado',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+    // #endregion
     return;
   }
 
-  isRunning = true;
+  isInitialized = true;
 
-  try {
-    const data = await fetchQuotation();
-    updateCache(data);
-    broadcast(data);
-  } catch (error) {
-    // Manter último valor válido do cache
-  } finally {
-    isRunning = false;
-  }
-}
-
-/**
- * Inicia o scheduler
- */
-function startScheduler() {
-  // Atualização às 09:00 BRT
-  cron.schedule('0 0 9 * * *', () => {
-    updateQuotation();
-  }, {
-    timezone: 'America/Sao_Paulo',
-  });
-
-  // Atualização às 15:00 BRT
-  cron.schedule('0 0 15 * * *', () => {
-    updateQuotation();
-  }, {
-    timezone: 'America/Sao_Paulo',
-  });
-
-  // Atualização inicial imediata (apenas se cache estiver vazio)
+  // Se cache estiver vazio, fazer primeira busca via fallback
   if (!getCache()) {
-    updateQuotation();
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/1dd75be7-d846-4b5f-a704-c8ee3a50d84e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'usdbrlScheduler.js:49',message:'Cache vazio, buscando fallback',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+    // #endregion
+    fetchQuotation()
+      .then((data) => {
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/1dd75be7-d846-4b5f-a704-c8ee3a50d84e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'usdbrlScheduler.js:52',message:'Fallback bem-sucedido',data:{data},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+        // #endregion
+        handleUpdate(data);
+      })
+      .catch((err) => {
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/1dd75be7-d846-4b5f-a704-c8ee3a50d84e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'usdbrlScheduler.js:55',message:'Fallback falhou',data:{error:err.message},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+        // #endregion
+      });
+  }
+
+  // Iniciar WebSocket real-time
+  // #region agent log
+  fetch('http://127.0.0.1:7242/ingest/1dd75be7-d846-4b5f-a704-c8ee3a50d84e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'usdbrlScheduler.js:60',message:'Iniciando WebSocket',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+  // #endregion
+  stopWebSocket = startWebSocket(handleUpdate, handleError);
+}
+
+/**
+ * Para o worker
+ */
+function stopWorker() {
+  if (stopWebSocket) {
+    stopWebSocket();
+    stopWebSocket = null;
+    isInitialized = false;
   }
 }
 
 /**
- * Força atualização manual
+ * Força atualização manual (usa fallback)
  */
 async function forceUpdate() {
-  await updateQuotation();
+  try {
+    const data = await fetchQuotation();
+    handleUpdate(data);
+  } catch (error) {
+    handleError(error);
+  }
 }
 
-export { startScheduler, forceUpdate, updateQuotation };
+// Manter compatibilidade com código existente
+const startScheduler = startWorker;
+
+export { startScheduler, startWorker, stopWorker, forceUpdate };

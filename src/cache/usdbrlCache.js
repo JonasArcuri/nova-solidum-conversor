@@ -13,7 +13,7 @@ let cache = null;
  *     ask: number,
  *     spread: number,
  *     timestamp: string,
- *     source: "Banco do Brasil"
+ *     source: "Banco Central / AwesomeAPI"
  *   },
  *   lastUpdate: string
  * }
@@ -30,7 +30,7 @@ function updateCache(data) {
       ask: data.ask,
       spread: data.spread,
       timestamp: data.timestamp,
-      source: data.source || 'Banco do Brasil',
+      source: data.source || 'Banco Central / AwesomeAPI',
     },
     lastUpdate: new Date().toISOString(),
   };

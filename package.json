@@ -13,12 +13,14 @@
   },
   "dependencies": {
     "cors": "^2.8.5",
+    "dotenv": "^16.6.1",
     "express": "^4.22.1",
     "express-rate-limit": "^7.5.1",
     "lightweight-charts": "^5.0.9",
     "node-cron": "^3.0.3",
     "react": "^18.2.0",
-    "react-dom": "^18.2.0"
+    "react-dom": "^18.2.0",
+    "ws": "^8.19.0"
   },
   "devDependencies": {
     "@types/react": "^18.2.43",

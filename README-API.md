@@ -4,20 +4,20 @@ API Node.js/Express para fornecer cotação USD/BRL com cache, SSE e atualizaç�
 
 ## 📋 Características
 
+- ✅ **WebSocket Real-time**: Atualizações instantâneas via Twelve Data
 - ✅ **Cache-first**: Arquitetura eficiente, sem requisições desnecessárias
 - ✅ **SSE Broadcast**: Server-Sent Events para múltiplos clientes
-- ✅ **Atualização agendada**: 2x ao dia (09:00 e 15:00 BRT)
 - ✅ **Rate Limiting**: Proteção contra abuso
-- ✅ **Fonte**: Banco Central do Brasil (PTAX) com fallback AwesomeAPI
+- ✅ **Fonte**: Twelve Data (WebSocket) com fallback Banco Central / AwesomeAPI
 
 ## 🏗️ Arquitetura
 
-### Cache-First Pattern
+### WebSocket Real-time Pattern
 
 ```
 ┌─────────────┐
-│   Worker    │───(2x/dia)───► API Banco Central / AwesomeAPI
-│  Scheduler  │
+│   Worker    │───(WebSocket)───► Twelve Data API
+│  WebSocket  │                    (USD/BRL Real-time)
 └──────┬──────┘
        │
        ▼
@@ -31,10 +31,11 @@ API Node.js/Express para fornecer cotação USD/BRL com cache, SSE e atualizaç�
 ```
 
 **Princípios:**
-- Worker atualiza cache 2x ao dia (09:00 e 15:00 BRT)
+- Worker conecta via WebSocket para atualizações em tempo real
 - REST e SSE **NUNCA** fazem fetch externo
-- Cache é a única fonte de dados para clientes
+- Cache é atualizado instantaneamente via WebSocket
 - Broadcast automático via SSE quando cache atualiza
+- Fallback para API HTTP se WebSocket não estiver disponível
 
 ## 🚀 Instalação
 
@@ -42,13 +43,24 @@ API Node.js/Express para fornecer cotação USD/BRL com cache, SSE e atualizaç�
 npm install
 ```
 
+### Obter API Key da Twelve Data
+
+1. Acesse [Twelve Data](https://twelvedata.com)
+2. Crie uma conta gratuita
+3. Obtenha sua API key no dashboard
+4. Configure a variável de ambiente `TWELVE_DATA_API_KEY`
+
 ## ⚙️ Configuração
 
-### Variáveis de Ambiente (Opcional)
+### Variáveis de Ambiente
 
+**Obrigatórias:**
+- `TWELVE_DATA_API_KEY` - API key da Twelve Data (obrigatório para WebSocket)
+
+**Opcionais:**
 - `PORT` - Porta do servidor (padrão: 3000, Render define automaticamente)
-- `FORCE_REFRESH_SECRET` - Secret para endpoint de force-refresh (opcional)
-- `API_BASE_URL` - URL base da API (para worker, padrão: localhost:PORT)
+- `FORCE_REFRESH_SECRET` - Secret para endpoint de force-refresh
+- `TWELVE_DATA_WS_URL` - URL do WebSocket (padrão: wss://ws.twelvedata.com/v1/quotes/price)
 
 ## 📡 Endpoints
 
@@ -128,17 +140,22 @@ x-force-refresh-secret: seu_secret_aqui
 }
 ```
 
-## ⏰ Atualização Agendada
+## ⏰ Atualização em Tempo Real via WebSocket
 
-A cotação é atualizada **EXATAMENTE 2 vezes ao dia**:
+A cotação é atualizada **via WebSocket real-time**:
 
-- **09:00 BRT** (horário de Brasília)
-- **15:00 BRT** (horário de Brasília)
+- **Worker**: Conecta via WebSocket à Twelve Data (servidor)
+- **Clientes**: Recebem atualizações via SSE (sem polling HTTP)
+- **Delay**: Sub-segundo (atualizações instantâneas)
+- **Fallback**: Se WebSocket falhar, usa API HTTP (Banco Central / AwesomeAPI)
 
 **Importante:**
-- Nunca atualiza fora desses horários
-- Nunca permite fetch por requisição de usuário
-- Mantém último valor válido se API falhar
+- **Zero polling**: WebSocket mantém conexão persistente
+- **Atualizações instantâneas**: Dados chegam assim que mudam
+- **Zero polling do cliente**: Clientes usam apenas SSE
+- **Cache-first**: REST retorna apenas do cache (nunca faz fetch)
+- **Broadcast eficiente**: 1 atualização → N clientes via SSE
+- Reconexão automática em caso de falha
 
 ## 🔐 Segurança
 
@@ -157,10 +174,14 @@ A cotação é atualizada **EXATAMENTE 2 vezes ao dia**:
 4. **Start Command**: `npm start`
 5. **Root Directory**: `.`
 
-### Variáveis de Ambiente (Opcional)
+### Variáveis de Ambiente
 
+**Obrigatórias:**
+- `TWELVE_DATA_API_KEY` - API key da Twelve Data
+
+**Opcionais:**
 - `FORCE_REFRESH_SECRET` - Secret para force-refresh
-- `API_BASE_URL` - URL base (para worker interno)
+- `TWELVE_DATA_WS_URL` - URL do WebSocket (padrão: wss://ws.twelvedata.com/v1/quotes/price)
 
 ### Verificação
 
@@ -211,6 +232,28 @@ api/
 2. **SSE Hub** adiciona cliente à lista
 3. Envia dados do cache imediatamente
 4. Envia atualização quando cache muda (2x ao dia)
+
+## 🛠️ Desenvolvimento Local
+
+### Rodar em Desenvolvimento
+
+O projeto requer **dois processos** rodando simultaneamente:
+
+**Terminal 1 - Servidor Express (Backend):**
+```bash
+npm start
+# Servidor rodando em http://localhost:3000
+```
+
+**Terminal 2 - Vite Dev Server (Frontend):**
+```bash
+npm run dev
+# Frontend rodando em http://localhost:5173
+```
+
+O Vite faz proxy de `/api/*` para o Express na porta 3000.
+
+**Nota:** Se você ver erros `ECONNREFUSED` no Vite, certifique-se de que o servidor Express está rodando na porta 3000.
 
 ## 🧪 Testes
 
