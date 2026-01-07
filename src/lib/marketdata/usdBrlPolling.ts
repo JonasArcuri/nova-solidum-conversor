@@ -49,7 +49,6 @@ export function connectUsdBrlTicker(
   let backoffMs = INITIAL_BACKOFF_MS;
   let isIntentionallyClosed = false;
   let failureCount = 0;
-  let lastSuccessTs = 0;
 
   const clearAllTimers = () => {
     if (pollIntervalId) {
@@ -131,7 +130,6 @@ export function connectUsdBrlTicker(
 
       failureCount = 0;
       backoffMs = INITIAL_BACKOFF_MS;
-      lastSuccessTs = tickTs;
       onStatus("live");
       onTick(tick);
     } catch (error) {
@@ -152,18 +150,6 @@ export function connectUsdBrlTicker(
     pollIntervalId = setInterval(() => {
       fetchPrice();
     }, POLL_INTERVAL_MS);
-  };
-
-  const reconnect = () => {
-    if (isIntentionallyClosed) return;
-
-    clearAllTimers();
-    onStatus("reconnecting");
-    backoffMs = Math.min(backoffMs * 1.5, MAX_BACKOFF_MS);
-
-    reconnectTimeoutId = setTimeout(() => {
-      startPolling();
-    }, backoffMs);
   };
 
   startPolling();

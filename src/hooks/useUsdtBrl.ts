@@ -71,7 +71,6 @@ export function useUsdtBrl(spreadBps?: number): UseUsdtBrlReturn {
 
   const handleTick = useCallback((tick: TickerTick) => {
     const now = Date.now();
-    const currentSpreadBps = spreadBps ?? SPREAD_BPS_DEFAULT;
 
     // Sempre atualizar latência em tempo real
     if (tick.latency !== undefined) {
@@ -86,7 +85,7 @@ export function useUsdtBrl(spreadBps?: number): UseUsdtBrlReturn {
     // mesmo que o preço seja muito similar, o spread deve ser recalculado
     // Isso garante que o valor com spread atualiza conforme a variação da moeda
     emitPrice(tick, dataTs);
-  }, [emitPrice, spreadBps]);
+  }, [emitPrice]);
 
   // Fallback removido - usando apenas polling HTTP direto
 

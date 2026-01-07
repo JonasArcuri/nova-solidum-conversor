@@ -31,10 +31,17 @@ export function applySpread(base: number, spreadBps: number = SPREAD_BPS_DEFAULT
   // Calcular spread percentual
   const priceWithPercentSpread = base * (1 + spreadBps / 10000);
   
-  // Garantir spread mínimo de 0,0025 pontos (apenas se spread > 0%)
-  const priceWithMinSpread = base + MIN_SPREAD_POINTS;
+  // Garantir spread mínimo de 0,0025 pontos apenas se o spread percentual for menor que o mínimo
+  // Se o spread percentual já for maior que o mínimo, usar apenas o spread percentual
+  const spreadAmount = priceWithPercentSpread - base;
+  const minSpreadAmount = MIN_SPREAD_POINTS;
   
-  // Retornar o maior valor (garante o mínimo)
-  return Math.max(priceWithPercentSpread, priceWithMinSpread);
+  // Se o spread percentual for menor que o mínimo, usar o mínimo
+  if (spreadAmount < minSpreadAmount) {
+    return base + minSpreadAmount;
+  }
+  
+  // Caso contrário, retornar o spread percentual
+  return priceWithPercentSpread;
 }
 

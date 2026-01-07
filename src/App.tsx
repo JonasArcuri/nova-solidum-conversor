@@ -29,6 +29,19 @@ function App() {
     }).format(price);
   };
 
+  const formatPriceWithSpread = (price: number | null): string => {
+    if (price === null || !isFinite(price)) {
+      return "Carregando...";
+    }
+    // Formatar com 5 casas decimais para o valor com spread aplicado
+    return new Intl.NumberFormat("pt-BR", {
+      style: "currency",
+      currency: "BRL",
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 5,
+    }).format(price);
+  };
+
   const formatSpreadBps = (bps: number): string => {
     return (bps / 100).toFixed(2);
   };
@@ -114,7 +127,7 @@ function App() {
         {activeTab === "quote" && (
           <>
             <div className="quote-price">
-              <span className="price-value" key={`price-${updateKey}`}>{formatPrice(priceWithSpread)}</span>
+              <span className="price-value" key={`price-${updateKey}`}>{formatPriceWithSpread(priceWithSpread)}</span>
               <p className="price-info">Valor com spread aplicado</p>
             </div>
 
