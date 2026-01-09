@@ -1,8 +1,9 @@
 /**
- * Cliente de polling HTTP para dados de mercado USD/BRL.
- * Ajustado para polling rápido quando a aba está visível e
- * economiza quando está oculta, com backoff e abort de requisições.
+ * Cliente híbrido WebSocket + HTTP para dados de mercado USD/BRL.
+ * Prioriza WebSocket Binance (tempo real) com fallback para polling HTTP.
  */
+
+import { connectBinanceWs } from "./binanceWs";
 
 export type TickerTick = {
   last: number;
@@ -56,12 +57,16 @@ export function connectUsdBrlTicker(
   onStatus: OnStatusCallback
 ): { close: () => void } {
   let closed = false;
+  let wsConnection: { close: () => void } | null = null;
   let timer: ReturnType<typeof setTimeout> | null = null;
   let consecutiveFails = 0;
   let abort: AbortController | null = null;
   let hasEverSucceeded = false;
   let hasEverBeenLive = false;
   let currentStatus: ConnectionStatus = "connecting";
+  let usingFallback = false;
+  let lastTickTs = 0;
+  const WS_TIMEOUT_MS = 15000; // Timeout para considerar WebSocket como falhando
 
   const setStatus = (s: ConnectionStatus) => {
     if (s !== currentStatus) {
@@ -215,9 +220,13 @@ export function connectUsdBrlTicker(
   const handleVisibility = () => {
     if (closed) return;
     if (typeof document !== "undefined" && document.visibilityState === "visible") {
-      scheduleNext(0); // volta para aba: atualiza na hora
+      if (usingFallback) {
+        scheduleNext(0); // volta para aba: atualiza na hora
+      }
     } else {
-      scheduleNext(jitter(getPollMs())); // oculta: respeita intervalo econômico
+      if (usingFallback) {
+        scheduleNext(jitter(getPollMs())); // oculta: respeita intervalo econômico
+      }
     }
   };
 
@@ -225,14 +234,67 @@ export function connectUsdBrlTicker(
     document.addEventListener("visibilitychange", handleVisibility);
   }
 
-  // Iniciar polling
-  scheduleNext(0);
+  // ============================================
+  // Tentar WebSocket primeiro (tempo real)
+  // ============================================
+  const startWebSocket = () => {
+    if (closed || usingFallback) return;
+
+    console.log("[USD/BRL] Tentando conectar via WebSocket Binance (tempo real)...");
+
+    const wsTickHandler = (tick: TickerTick) => {
+      lastTickTs = Date.now();
+      hasEverSucceeded = true;
+      hasEverBeenLive = true;
+      consecutiveFails = 0;
+      onTick(tick);
+    };
+
+    const wsStatusHandler = (status: ConnectionStatus) => {
+      setStatus(status);
+    };
+
+    wsConnection = connectBinanceWs(wsTickHandler, wsStatusHandler);
+
+    // Monitorar se WebSocket está funcionando
+    const wsMonitorTimer = setTimeout(() => {
+      if (closed) return;
+
+      // Se não recebeu nenhum tick em WS_TIMEOUT_MS, considerar falha
+      const timeSinceLastTick = Date.now() - lastTickTs;
+      if (!hasEverSucceeded || timeSinceLastTick > WS_TIMEOUT_MS) {
+        console.log("[USD/BRL] WebSocket não está respondendo. Mudando para fallback HTTP...");
+        if (wsConnection) {
+          wsConnection.close();
+          wsConnection = null;
+        }
+        usingFallback = true;
+        setStatus("fallback");
+        scheduleNext(0); // Iniciar polling HTTP
+      }
+    }, WS_TIMEOUT_MS);
+
+    // Limpar timer quando fechar
+    const originalClose = wsConnection.close;
+    wsConnection.close = () => {
+      clearTimeout(wsMonitorTimer);
+      originalClose();
+    };
+  };
+
+  // Iniciar com WebSocket
+  startWebSocket();
 
   return {
     close: () => {
       closed = true;
       clearTimer();
       abort?.abort();
+
+      if (wsConnection) {
+        wsConnection.close();
+        wsConnection = null;
+      }
 
       if (typeof document !== "undefined") {
         document.removeEventListener("visibilitychange", handleVisibility);
