@@ -1,8 +1,8 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useUsdtBrl } from "./hooks/useUsdtBrl";
 import { SPREAD_BPS_DEFAULT } from "./lib/pricing/spread";
 import { UsdtBrlCandlesChart } from "./components/UsdtBrlCandlesChart";
-import { TradingViewTicker } from "./components/TradingViewTicker";
+import { CustomUsdBrlTicker } from "./components/CustomUsdBrlTicker";
 import { type Timeframe } from "./lib/marketdata/timeframeMap";
 import logoImage from "./Nova-Solidum.png";
 import "./App.css";
@@ -14,7 +14,22 @@ function App() {
   const [spreadBps, setSpreadBps] = useState<number>(SPREAD_BPS_DEFAULT);
   const [spreadInputValue, setSpreadInputValue] = useState<string>((SPREAD_BPS_DEFAULT / 100).toFixed(2));
   const [timeframe, setTimeframe] = useState<Timeframe>("24H");
-  const { priceWithSpread, basePrice, bid, ask, lastUpdateTs, updateKey } = useUsdtBrl(spreadBps);
+  const { priceWithSpread, basePrice, bid, ask, lastUpdateTs, updateKey, status, latency, isSyntheticBidAsk } = useUsdtBrl(spreadBps);
+  
+  // Rastrear preço anterior para calcular variação em tempo real
+  const previousPriceRef = useRef<number | null>(null);
+  const [previousPrice, setPreviousPrice] = useState<number | null>(null);
+  
+  useEffect(() => {
+    if (basePrice !== null) {
+      // Se temos um preço anterior diferente, atualizar
+      if (previousPriceRef.current !== null && basePrice !== previousPriceRef.current) {
+        setPreviousPrice(previousPriceRef.current);
+      }
+      // Sempre atualizar a referência
+      previousPriceRef.current = basePrice;
+    }
+  }, [basePrice]);
 
   const formatPrice = (price: number | null): string => {
     if (price === null || !isFinite(price)) {
@@ -134,20 +149,20 @@ function App() {
             {basePrice !== null && (
               <div className="quote-details">
                 <div className="detail-row">
-                  <span className="detail-label">Preço base:</span>
+                  <span className="detail-label">Cotação ao vivo:</span>
                   <div className="detail-value-ticker">
-                    <TradingViewTicker symbol="FX_IDC:USDBRL" locale="pt_BR" colorTheme="light" />
+                    <CustomUsdBrlTicker price={basePrice} previousPrice={previousPrice} />
                   </div>
                 </div>
                 {bid !== null && (
                   <div className="detail-row">
-                    <span className="detail-label">Bid:</span>
+                    <span className="detail-label">Bid{isSyntheticBidAsk ? " (estimado)" : ""}:</span>
                     <span className="detail-value" key={`bid-${updateKey}-${lastUpdateTs}`}>{formatPrice(bid)}</span>
                   </div>
                 )}
                 {ask !== null && (
                   <div className="detail-row">
-                    <span className="detail-label">Ask:</span>
+                    <span className="detail-label">Ask{isSyntheticBidAsk ? " (estimado)" : ""}:</span>
                     <span className="detail-value" key={`ask-${updateKey}-${lastUpdateTs}`}>{formatPrice(ask)}</span>
                   </div>
                 )}
@@ -165,8 +180,11 @@ function App() {
             )}
 
             <div className="quote-status">
-              <span className="status-indicator status-live pulse"></span>
-              <span className="status-text">Conectado</span>
+              <span className={`status-indicator ${status === "live" ? "status-live pulse" : "status-connecting"}`} />
+              <span className="status-text">
+                {status === "live" ? "Conectado" : status === "reconnecting" ? "Reconectando..." : "Conectando..."}
+                {latency !== null ? ` • ${latency}ms` : ""}
+              </span>
             </div>
 
             {/* Gráfico na aba principal */}

@@ -24,7 +24,7 @@ body {
 .main-header {
   background: #ffffff;
   border-bottom: 1px solid #e5e7eb;
-  padding: 20px 0;
+  padding: 12px 0;
   position: sticky;
   top: 0;
   z-index: 100;
@@ -47,7 +47,7 @@ body {
 }
 
 .logo-image {
-  height: 140px;
+  height: 100px;
   width: auto;
   object-fit: contain;
 }
@@ -56,12 +56,14 @@ body {
 .main-content {
   max-width: 1200px;
   margin: 0 auto;
-  padding: 80px 24px 40px;
+  padding: 40px 24px 40px;
 }
 
 .hero-section {
   text-align: center;
   margin-bottom: 60px;
+  overflow: visible;
+  padding: 0 4px;
 }
 
 .hero-title {
@@ -71,6 +73,8 @@ body {
   color: #0a2540;
   margin-bottom: 24px;
   letter-spacing: -1px;
+  line-height: 1.1;
+  overflow-wrap: break-word;
 }
 
 .hero-tagline {
@@ -172,6 +176,13 @@ body {
   display: flex;
   align-items: center;
   justify-content: flex-end;
+  position: relative;
+  pointer-events: none;
+}
+
+.tradingview-single-ticker-container > div:last-child {
+  pointer-events: auto !important;
+  cursor: default !important;
 }
 
 .tradingview-single-ticker-wrapper {
@@ -314,15 +325,20 @@ body {
 
 @media (max-width: 768px) {
   .main-content {
-    padding: 40px 16px 32px;
+    padding: 24px 16px 32px;
+  }
+
+  .hero-section {
+    margin-bottom: 40px;
   }
 
   .hero-title {
-    font-size: 48px;
+    font-size: 42px;
+    line-height: 1.1;
   }
 
   .hero-tagline {
-    font-size: 16px;
+    font-size: 15px;
   }
 
   .quote-card {
@@ -331,7 +347,7 @@ body {
   }
 
   .logo-image {
-    height: 110px;
+    height: 80px;
   }
 
   .quote-title {
@@ -386,28 +402,35 @@ body {
 }
 
 @media (max-width: 480px) {
+  .main-header {
+    padding: 8px 0;
+  }
+
   .main-content {
-    padding: 32px 12px 24px;
+    padding: 20px 12px 24px;
   }
 
   .hero-section {
-    margin-bottom: 40px;
+    margin-bottom: 32px;
   }
 
   .hero-title {
-    font-size: 36px;
+    font-size: 32px;
+    line-height: 1.1;
+    letter-spacing: -0.5px;
   }
 
   .hero-tagline {
-    font-size: 14px;
+    font-size: 13px;
+    line-height: 1.5;
   }
 
   .header-content {
-    padding: 0 16px;
+    padding: 0 12px;
   }
 
   .logo-image {
-    height: 90px;
+    height: 70px;
   }
 
   .quote-card {
@@ -629,6 +652,48 @@ body {
   text-decoration: none !important;
 }
 
+/* Ocultar logo/ícone do TradingView no widget */
+.tradingview-widget-container img[src*="tradingview"],
+.tradingview-widget-container img[alt*="TradingView"],
+.tradingview-widget-container__widget img,
+.tradingview-widget-copyright img,
+div[class*="tv-"] img[src*="tradingview"],
+div[class*="tradingview"] img[src*="logo"] {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+}
+
+/* Bloquear TODOS os cliques no widget do TradingView */
+.tradingview-single-ticker-container *,
+.tradingview-widget-container *,
+.tradingview-widget-container__widget *,
+.tradingview-widget-container iframe,
+.tradingview-widget-container a,
+div[id*="tradingview"] *,
+div[id*="tradingview"] a,
+div[id*="tradingview"] iframe {
+  pointer-events: none !important;
+  cursor: default !important;
+}
+
+/* Permitir apenas interação com elementos seguros (não links) */
+.tradingview-single-ticker-container {
+  pointer-events: none !important;
+}
+
+/* Bloquear navegação em iframes do TradingView */
+.tradingview-widget-container iframe {
+  pointer-events: none !important;
+}
+
+/* Sobrescrever qualquer estilo inline que tente habilitar cliques */
+[onclick],
+[href*="tradingview"] {
+  pointer-events: none !important;
+  cursor: default !important;
+}
+
 .chart-container {
   width: 100%;
   position: relative;
@@ -727,3 +792,178 @@ body {
   border-radius: 12px;
 }
 
+/* Custom USD/BRL Ticker Widget */
+.custom-ticker {
+  background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+  border: 2px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 16px 20px;
+  min-width: 280px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  transition: all 0.3s ease;
+}
+
+.custom-ticker:hover {
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+  transform: translateY(-2px);
+}
+
+.custom-ticker.ticker-flash {
+  animation: priceFlash 0.6s ease;
+}
+
+@keyframes priceFlash {
+  0%, 100% {
+    background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+  }
+  50% {
+    background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
+  }
+}
+
+.ticker-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.ticker-symbol {
+  font-size: 13px;
+  font-weight: 700;
+  color: #64748b;
+  letter-spacing: 0.5px;
+}
+
+.ticker-badge {
+  font-size: 10px;
+  font-weight: 700;
+  color: #ffffff;
+  background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%);
+  padding: 4px 10px;
+  border-radius: 12px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  box-shadow: 0 2px 4px rgba(220, 38, 38, 0.4);
+}
+
+.ticker-price-section {
+  margin: 12px 0;
+}
+
+.ticker-price {
+  font-size: 28px;
+  font-weight: 700;
+  color: #0a2540;
+  display: block;
+  line-height: 1.2;
+  font-family: 'Inter', monospace;
+}
+
+.ticker-change {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 8px 0;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.ticker-change.positive {
+  color: #10b981;
+}
+
+.ticker-change.negative {
+  color: #ef4444;
+}
+
+.ticker-change.neutral {
+  color: #64748b;
+}
+
+.change-arrow {
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.change-value {
+  font-family: 'Inter', monospace;
+}
+
+.change-percent {
+  opacity: 0.8;
+}
+
+.ticker-footer {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid #e2e8f0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.ticker-source {
+  font-size: 10px;
+  color: #94a3b8;
+  font-weight: 500;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+}
+
+.ticker-live {
+  font-size: 10px;
+  font-weight: 700;
+  color: #10b981;
+  letter-spacing: 0.5px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  animation: livePulse 2s ease-in-out infinite;
+}
+
+@keyframes livePulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.6;
+  }
+}
+
+.ticker-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 30px 0;
+}
+
+.loading-dot {
+  width: 8px;
+  height: 8px;
+  background: #64748b;
+  border-radius: 50%;
+  animation: loadingPulse 1.4s ease-in-out infinite;
+}
+
+.loading-dot:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.loading-dot:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@keyframes loadingPulse {
+  0%, 100% {
+    opacity: 0.3;
+    transform: scale(0.8);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.2);
+  }
+}

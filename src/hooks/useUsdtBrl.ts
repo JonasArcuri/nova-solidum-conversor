@@ -1,17 +1,17 @@
 /**
- * Hook para cotação USD/BRL via polling HTTP
- * 
- * Usa polling HTTP para buscar atualizações da API
- * Compatível com Vercel (serverless functions)
- * 
- * Otimizações:
- * 1. Polling HTTP 1 vez por dia (24 horas)
- * 2. Cálculo de Bid/Ask a partir do preço médio
- * 3. Indicador de latência
- * 4. Recalculo automático do spread quando o input mudar
+ * Hook para cotação USD/BRL em tempo real.
+ *
+ * Este hook recebe dados da função `connectUsdBrlTicker`, que pode usar
+ * polling, WebSocket ou outro método conforme implementação em `usdBrlPolling.ts`.
+ *
+ * - Fornece preço base (médio), bid, ask, priceWithSpread e updateKey para updates do React.
+ * - Calcula e atualiza o spread aplicado sempre que necessário.
+ * - Expõe status (live/connecting/reconnecting) e latência, quando fornecidos pela fonte.
+ *
+ * Importante: sempre confira a implementação de `connectUsdBrlTicker` em caso de alteração do backend!
  */
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { connectUsdBrlTicker, type TickerTick, type ConnectionStatus } from "@/lib/marketdata/usdBrlPolling";
 import { applySpread, SPREAD_BPS_DEFAULT } from "@/lib/pricing/spread";
 
@@ -24,17 +24,18 @@ export interface UseUsdtBrlReturn {
   status: ConnectionStatus;
   latency: number | null;
   updateKey: number; // Chave de atualização para forçar re-render mesmo quando valores são iguais
+  isSyntheticBidAsk: boolean | null;
 }
 
 export function useUsdtBrl(spreadBps?: number): UseUsdtBrlReturn {
   const [basePrice, setBasePrice] = useState<number | null>(null);
-  const [priceWithSpread, setPriceWithSpread] = useState<number | null>(null);
   const [bid, setBid] = useState<number | null>(null);
   const [ask, setAsk] = useState<number | null>(null);
   const [lastUpdateTs, setLastUpdateTs] = useState<number | null>(null);
   const [status, setStatus] = useState<ConnectionStatus>("connecting");
   const [latency, setLatency] = useState<number | null>(null);
   const [updateKey, setUpdateKey] = useState<number>(0);
+  const [isSyntheticBidAsk, setIsSyntheticBidAsk] = useState<boolean | null>(null);
 
   const emitPrice = useCallback((tick: TickerTick, ts: number) => {
     // Preço base do Nova Solidum = Preço médio da API de câmbio fiat
@@ -48,6 +49,7 @@ export function useUsdtBrl(spreadBps?: number): UseUsdtBrlReturn {
       setAsk(tick.ask);
       setLastUpdateTs(ts);
       setLatency(tick.latency ?? null);
+      setIsSyntheticBidAsk(tick.isSynthetic ?? null);
       // Usar timestamp único para forçar re-render mesmo com valores similares
       setUpdateKey(ts);
     }
@@ -82,17 +84,14 @@ export function useUsdtBrl(spreadBps?: number): UseUsdtBrlReturn {
     }
   }, []);
 
-  // Recalcular priceWithSpread quando spreadBps OU basePrice mudar
-  // Isso garante que quando o usuário alterar o input do spread, o valor seja recalculado imediatamente
-  useEffect(() => {
-    if (basePrice !== null) {
-      const currentSpreadBps = spreadBps ?? SPREAD_BPS_DEFAULT;
-      const newSpread = applySpread(basePrice, currentSpreadBps);
-      if (isFinite(newSpread) && newSpread > 0) {
-        setPriceWithSpread(newSpread);
-      }
-    }
-  }, [spreadBps, basePrice]); // Recalcular quando spreadBps OU basePrice mudar
+  // Deriva automaticamente sempre de basePrice + spreadBps: não tem risco de desync
+  const priceWithSpread = useMemo(() => {
+    if (basePrice === null) return null;
+    const currentSpreadBps = spreadBps ?? SPREAD_BPS_DEFAULT;
+    const newSpread = applySpread(basePrice, currentSpreadBps);
+    if (!isFinite(newSpread) || newSpread <= 0) return null;
+    return newSpread;
+  }, [basePrice, spreadBps]);
 
   // Usar refs para estabilizar callbacks e evitar recriação do polling
   const handleTickRef = useRef(handleTick);
@@ -134,5 +133,7 @@ export function useUsdtBrl(spreadBps?: number): UseUsdtBrlReturn {
     status,
     latency,
     updateKey,
+    isSyntheticBidAsk,
   };
+
 }

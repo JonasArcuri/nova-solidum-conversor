@@ -1,5 +1,5 @@
 /**
- * Componente Single Quote Widget do TradingView
+ * Componente Single Quote Widget do NetDania (via TradingView)
  * Usa embed-widget-single-quote.js do TradingView
  */
 
@@ -43,7 +43,7 @@ export function TradingViewTicker({
     
     const copyrightDiv = document.createElement("div");
     copyrightDiv.className = "tradingview-widget-copyright";
-    copyrightDiv.innerHTML = `<a href="https://www.tradingview.com/symbols/USDBRL/?exchange=FX_IDC" rel="noopener nofollow" target="_blank"><span class="blue-text">USDBRL rate</span></a><span class="trademark"> by TradingView</span>`;
+    copyrightDiv.innerHTML = `<a href="https://www.tradingview.com/symbols/USDBRL/?exchange=FX_IDC" rel="noopener nofollow" target="_blank"><span class="blue-text">USDBRL rate</span></a><span class="trademark"> by NetDania</span>`;
     
     widgetContainer.appendChild(widgetDiv);
     widgetContainer.appendChild(copyrightDiv);
@@ -65,13 +65,60 @@ export function TradingViewTicker({
     });
 
     script.onerror = () => {
-      setLoadError("Erro ao carregar o widget do TradingView");
+      setLoadError("Erro ao carregar o widget do NetDania");
     };
 
     widgetDiv.appendChild(script);
     scriptRef.current = script;
 
+    // Remover logo e desabilitar TODOS os links após carregar
+    const startTime = Date.now();
+    const intervalId = setInterval(() => {
+      if (containerRef.current) {
+        // Remover todos os logos/imagens do TradingView
+        const images = containerRef.current.querySelectorAll('img');
+        images.forEach(img => {
+          if (img.src?.includes('tradingview') || img.alt?.includes('TradingView')) {
+            img.style.display = 'none';
+            img.style.visibility = 'hidden';
+            img.remove();
+          }
+        });
+
+        // Desabilitar TODOS os links (não apenas TradingView)
+        const allLinks = containerRef.current.querySelectorAll('a');
+        allLinks.forEach(link => {
+          link.removeAttribute('href');
+          link.removeAttribute('onclick');
+          link.removeAttribute('target');
+          link.style.pointerEvents = 'none';
+          link.style.cursor = 'default';
+          link.style.textDecoration = 'none';
+          link.onclick = (e) => { e.preventDefault(); e.stopPropagation(); return false; };
+        });
+
+        // Bloquear cliques em toda a área do widget
+        const widgetDivs = containerRef.current.querySelectorAll('div');
+        widgetDivs.forEach(div => {
+          div.style.pointerEvents = 'none';
+          div.onclick = (e) => { e.preventDefault(); e.stopPropagation(); return false; };
+        });
+
+        // Bloquear iframes
+        const iframes = containerRef.current.querySelectorAll('iframe');
+        iframes.forEach(iframe => {
+          iframe.style.pointerEvents = 'none';
+        });
+
+        // Após 5 segundos, parar de checar
+        if (Date.now() - startTime > 5000) {
+          clearInterval(intervalId);
+        }
+      }
+    }, 100);
+
     return () => {
+      clearInterval(intervalId);
       if (scriptRef.current) {
         const scriptElement = document.getElementById("tradingview-single-quote-script");
         if (scriptElement) {
@@ -93,8 +140,22 @@ export function TradingViewTicker({
   }
 
   return (
-    <div className="tradingview-single-ticker-container">
+    <div className="tradingview-single-ticker-container" style={{ position: 'relative' }}>
       <div ref={containerRef} className="tradingview-single-ticker-wrapper" />
+      {/* Overlay transparente para bloquear absolutamente todos os cliques */}
+      <div 
+        style={{ 
+          position: 'absolute', 
+          top: 0, 
+          left: 0, 
+          width: '100%', 
+          height: '100%', 
+          zIndex: 9999,
+          cursor: 'default',
+          pointerEvents: 'auto'
+        }}
+        onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
+      />
     </div>
   );
 }
