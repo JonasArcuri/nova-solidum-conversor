@@ -20,7 +20,7 @@ export function CustomUsdBrlTicker({ price, previousPrice }: CustomUsdBrlTickerP
   useEffect(() => {
     if (price !== null) {
       // Se temos preço anterior, calcular variação
-      if (previousPrice !== null && previousPrice > 0) {
+      if (previousPrice !== undefined && previousPrice !== null && previousPrice > 0) {
         const diff = price - previousPrice;
         const percent = (diff / previousPrice) * 100;
         
