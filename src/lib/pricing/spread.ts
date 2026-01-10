@@ -2,7 +2,7 @@
  * Módulo para aplicação de spread (markup) em preços
  */
 
-export const SPREAD_BPS_DEFAULT = 100; // 1.00% = 100 basis points
+export const SPREAD_BPS_DEFAULT = 150; // 1.50% = 150 basis points
 export const MIN_SPREAD_POINTS = 0.0025; // Spread mínimo absoluto em pontos
 
 /**
