@@ -1,8 +1,8 @@
-import { useState, useEffect, useRef } from "react";
+import { useState } from "react";
 import { useUsdtBrl } from "./hooks/useUsdtBrl";
 import { SPREAD_BPS_DEFAULT } from "./lib/pricing/spread";
 import { UsdtBrlCandlesChart } from "./components/UsdtBrlCandlesChart";
-import { CustomUsdBrlTicker } from "./components/CustomUsdBrlTicker";
+import TradingViewTicker from "./components/TradingViewTicker";
 import { type Timeframe } from "./lib/marketdata/timeframeMap";
 import logoImage from "./Nova-Solidum.png";
 import "./App.css";
@@ -15,21 +15,7 @@ function App() {
   const [spreadInputValue, setSpreadInputValue] = useState<string>((SPREAD_BPS_DEFAULT / 100).toFixed(2));
   const [timeframe, setTimeframe] = useState<Timeframe>("24H");
   const { priceWithSpread, basePrice, bid, ask, lastUpdateTs, updateKey, status, latency, isSyntheticBidAsk } = useUsdtBrl(spreadBps);
-  
-  // Rastrear preço anterior para calcular variação em tempo real
-  const previousPriceRef = useRef<number | null>(null);
-  const [previousPrice, setPreviousPrice] = useState<number | null>(null);
-  
-  useEffect(() => {
-    if (basePrice !== null) {
-      // Se temos um preço anterior diferente, atualizar
-      if (previousPriceRef.current !== null && basePrice !== previousPriceRef.current) {
-        setPreviousPrice(previousPriceRef.current);
-      }
-      // Sempre atualizar a referência
-      previousPriceRef.current = basePrice;
-    }
-  }, [basePrice]);
+
 
   const formatPrice = (price: number | null): string => {
     if (price === null || !isFinite(price)) {
@@ -65,7 +51,7 @@ function App() {
     // Permitir digitação livre - aceitar números, ponto e vírgula
     const cleanedValue = value.replace(/[^0-9,.]/g, '').replace(',', '.');
     setSpreadInputValue(cleanedValue);
-    
+
     // Validar e atualizar spreadBps se for um número válido
     const numValue = parseFloat(cleanedValue);
     if (!isNaN(numValue) && numValue >= 0 && numValue <= 100) {
@@ -114,81 +100,140 @@ function App() {
         </div>
 
         <div className="quote-card">
-        <h2 className="quote-title">Cotação USD/BRL</h2>
-        
-        {/* Tabs */}
-        <div className="tabs">
-          <button
-            className={`tab ${activeTab === "quote" ? "active" : ""}`}
-            onClick={() => setActiveTab("quote")}
-          >
-            Cotação
-          </button>
-          <button
-            className={`tab ${activeTab === "spread" ? "active" : ""}`}
-            onClick={() => setActiveTab("spread")}
-          >
-            Spread
-          </button>
-          <button
-            className={`tab ${activeTab === "chart" ? "active" : ""}`}
-            onClick={() => setActiveTab("chart")}
-          >
-            Gráfico
-          </button>
-        </div>
+          <h2 className="quote-title">Cotação USD/BRL</h2>
 
-        {/* Tab Content: Cotação */}
-        {activeTab === "quote" && (
-          <>
-            <div className="quote-price">
-              <span className="price-value" key={`price-${updateKey}`}>{formatPriceWithSpread(priceWithSpread)}</span>
-              <p className="price-info">Valor com spread aplicado</p>
-            </div>
+          {/* Tabs */}
+          <div className="tabs">
+            <button
+              className={`tab ${activeTab === "quote" ? "active" : ""}`}
+              onClick={() => setActiveTab("quote")}
+            >
+              Cotação
+            </button>
+            <button
+              className={`tab ${activeTab === "spread" ? "active" : ""}`}
+              onClick={() => setActiveTab("spread")}
+            >
+              Spread
+            </button>
+            <button
+              className={`tab ${activeTab === "chart" ? "active" : ""}`}
+              onClick={() => setActiveTab("chart")}
+            >
+              Gráfico
+            </button>
+          </div>
 
-            {basePrice !== null && (
-              <div className="quote-details">
-                <div className="detail-row">
-                  <span className="detail-label">Cotação ao vivo:</span>
-                  <div className="detail-value-ticker">
-                    <CustomUsdBrlTicker price={basePrice} previousPrice={previousPrice} />
-                  </div>
-                </div>
-                {bid !== null && (
-                  <div className="detail-row">
-                    <span className="detail-label">Bid{isSyntheticBidAsk ? " (estimado)" : ""}:</span>
-                    <span className="detail-value" key={`bid-${updateKey}-${lastUpdateTs}`}>{formatPrice(bid)}</span>
-                  </div>
-                )}
-                {ask !== null && (
-                  <div className="detail-row">
-                    <span className="detail-label">Ask{isSyntheticBidAsk ? " (estimado)" : ""}:</span>
-                    <span className="detail-value" key={`ask-${updateKey}-${lastUpdateTs}`}>{formatPrice(ask)}</span>
-                  </div>
-                )}
-                <div className="detail-row">
-                  <span className="detail-label">Spread aplicado:</span>
-                  <span className="detail-value">{formatSpreadBps(spreadBps)}%</span>
-                </div>
-                {lastUpdateTs !== null && (
-                  <div className="detail-row">
-                    <span className="detail-label">Última atualização:</span>
-                    <span className="detail-value" key={`ts-${updateKey}`}>{formatTimestamp(lastUpdateTs)}</span>
-                  </div>
-                )}
+          {/* Tab Content: Cotação */}
+          {activeTab === "quote" && (
+            <>
+              <div className="quote-price">
+                <span className="price-value" key={`price-${updateKey}`}>{formatPriceWithSpread(priceWithSpread)}</span>
+                <p className="price-info">Valor com spread aplicado</p>
               </div>
-            )}
 
-            <div className="quote-status">
-              <span className={`status-indicator ${status === "live" ? "status-live pulse" : "status-connecting"}`} />
-              <span className="status-text">
-                {status === "live" ? "Conectado" : status === "reconnecting" ? "Reconectando..." : "Conectando..."}
-                {latency !== null ? ` • ${latency}ms` : ""}
-              </span>
+              {basePrice !== null && (
+                <div className="quote-details">
+                  <div className="detail-row">
+                    <span className="detail-label">Cotação ao vivo:</span>
+                    <div className="detail-value-ticker" style={{ width: '100%' }}>
+                      <TradingViewTicker />
+                    </div>
+                  </div>
+                  {bid !== null && (
+                    <div className="detail-row">
+                      <span className="detail-label">Bid{isSyntheticBidAsk ? " (estimado)" : ""}:</span>
+                      <span className="detail-value" key={`bid-${updateKey}-${lastUpdateTs}`}>{formatPrice(bid)}</span>
+                    </div>
+                  )}
+                  {ask !== null && (
+                    <div className="detail-row">
+                      <span className="detail-label">Ask{isSyntheticBidAsk ? " (estimado)" : ""}:</span>
+                      <span className="detail-value" key={`ask-${updateKey}-${lastUpdateTs}`}>{formatPrice(ask)}</span>
+                    </div>
+                  )}
+                  <div className="detail-row">
+                    <span className="detail-label">Spread aplicado:</span>
+                    <span className="detail-value">{formatSpreadBps(spreadBps)}%</span>
+                  </div>
+                  {lastUpdateTs !== null && (
+                    <div className="detail-row">
+                      <span className="detail-label">Última atualização:</span>
+                      <span className="detail-value" key={`ts-${updateKey}`}>{formatTimestamp(lastUpdateTs)}</span>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <div className="quote-status">
+                <span className={`status-indicator ${status === "live" ? "status-live pulse" : "status-connecting"}`} />
+                <span className="status-text">
+                  {status === "live" ? "Conectado" : status === "reconnecting" ? "Reconectando..." : "Conectando..."}
+                  {latency !== null ? ` • ${latency}ms` : ""}
+                </span>
+              </div>
+
+              {/* Gráfico na aba principal */}
+              <div className="chart-section-main">
+                <div className="timeframe-buttons">
+                  {(["1H", "24H", "7D", "30D", "90D", "1Y", "MAX"] as Timeframe[]).map((tf) => (
+                    <button
+                      key={tf}
+                      className={`timeframe-btn ${timeframe === tf ? "active" : ""}`}
+                      onClick={() => setTimeframe(tf)}
+                    >
+                      {tf}
+                    </button>
+                  ))}
+                </div>
+                <UsdtBrlCandlesChart
+                  timeframe={timeframe}
+                  applySpread={true}
+                  spreadBps={spreadBps}
+                />
+              </div>
+            </>
+          )}
+
+          {/* Tab Content: Spread */}
+          {activeTab === "spread" && (
+            <div className="spread-settings">
+              <div className="spread-form">
+                <label htmlFor="spread-input" className="spread-label">
+                  Spread (%)
+                </label>
+                <div className="spread-input-group">
+                  <input
+                    id="spread-input"
+                    type="text"
+                    inputMode="decimal"
+                    className="spread-input"
+                    value={spreadInputValue}
+                    onChange={(e) => handleSpreadInputChange(e.target.value)}
+                    onBlur={handleSpreadBlur}
+                    placeholder="0.85"
+                  />
+                  <span className="spread-suffix">%</span>
+                </div>
+                <div className="spread-info">
+                  <p className="spread-description">
+                    O spread atual é de <strong>{formatSpreadBps(spreadBps)}%</strong> ({spreadBps} basis points).
+                  </p>
+                  <p className="spread-example">
+                    {basePrice !== null && (
+                      <>
+                        Exemplo: Preço base {formatPrice(basePrice)} → Com spread {formatPrice(priceWithSpread)}
+                      </>
+                    )}
+                  </p>
+                </div>
+              </div>
             </div>
+          )}
 
-            {/* Gráfico na aba principal */}
-            <div className="chart-section-main">
+          {/* Tab Content: Gráfico */}
+          {activeTab === "chart" && (
+            <div className="chart-settings">
               <div className="timeframe-buttons">
                 {(["1H", "24H", "7D", "30D", "90D", "1Y", "MAX"] as Timeframe[]).map((tf) => (
                   <button
@@ -206,80 +251,21 @@ function App() {
                 spreadBps={spreadBps}
               />
             </div>
-          </>
-        )}
-
-        {/* Tab Content: Spread */}
-        {activeTab === "spread" && (
-          <div className="spread-settings">
-            <div className="spread-form">
-              <label htmlFor="spread-input" className="spread-label">
-                Spread (%)
-              </label>
-              <div className="spread-input-group">
-                <input
-                  id="spread-input"
-                  type="text"
-                  inputMode="decimal"
-                  className="spread-input"
-                  value={spreadInputValue}
-                  onChange={(e) => handleSpreadInputChange(e.target.value)}
-                  onBlur={handleSpreadBlur}
-                  placeholder="0.85"
-                />
-                <span className="spread-suffix">%</span>
-              </div>
-              <div className="spread-info">
-                <p className="spread-description">
-                  O spread atual é de <strong>{formatSpreadBps(spreadBps)}%</strong> ({spreadBps} basis points).
-                </p>
-                <p className="spread-example">
-                  {basePrice !== null && (
-                    <>
-                      Exemplo: Preço base {formatPrice(basePrice)} → Com spread {formatPrice(priceWithSpread)}
-                    </>
-                  )}
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Tab Content: Gráfico */}
-        {activeTab === "chart" && (
-          <div className="chart-settings">
-            <div className="timeframe-buttons">
-              {(["1H", "24H", "7D", "30D", "90D", "1Y", "MAX"] as Timeframe[]).map((tf) => (
-                <button
-                  key={tf}
-                  className={`timeframe-btn ${timeframe === tf ? "active" : ""}`}
-                  onClick={() => setTimeframe(tf)}
-                >
-                  {tf}
-                </button>
-              ))}
-            </div>
-            <UsdtBrlCandlesChart
-              timeframe={timeframe}
-              applySpread={true}
-              spreadBps={spreadBps}
-            />
-          </div>
-        )}
-      </div>
+          )}
+        </div>
       </main>
 
       <footer className="main-footer">
         <div className="footer-content">
           <div className="footer-top">
             <p className="footer-copyright">
-              © 2025 Nova Solidum Finances LTDA. Todos os direitos reservados | 
-              <a href="#" className="footer-link">Termos de Uso</a> | 
-              <a href="#" className="footer-link">Políticas de Compliance</a> | 
+              © 2025 Nova Solidum Finances LTDA. Todos os direitos reservados |
+              <a href="#" className="footer-link">Termos de Uso</a> |
+              <a href="#" className="footer-link">Políticas de Compliance</a> |
               <a href="#" className="footer-link">Suporte</a>
             </p>
           </div>
-          
+
           <div className="footer-disclaimer">
             <p>
               <strong>Disclaimer</strong> - A Nova Solidum Finances é uma Prestadora de Serviços de Ativos Virtuais (PSAV), constituída no território brasileiro, inscrita no CNPJ sob o nº 63.010.454/0001-63, com a finalidade de prestar serviços de intermediação em operações com ativos virtuais — compreendendo compra e/ou venda de criptoativos. A empresa é classificada como intermediária, nos termos da Consulta Pública nº 109/2024 do Banco Central do Brasil. O licenciamento junto ao Banco Central será requerido tão logo o regulador inicie a fase de adequação legal, etapa que, até o presente momento, ainda não foi formalmente implementada. Não há necessidade de registro da CVM, uma vez que não se trata de operações/serviços com valores mobiliários.
