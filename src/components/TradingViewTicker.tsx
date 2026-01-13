@@ -13,10 +13,10 @@ function TradingViewTicker() {
         script.async = true;
         script.innerHTML = `
         {
-          "symbol": "BINANCE:USDTBRL",
+          "symbol": "FX_IDC:USDBRL",
           "width": "100%",
           "isTransparent": true,
-          "colorTheme": "dark",
+          "colorTheme": "light",
           "locale": "br"
         }`;
         container.current.appendChild(script);
